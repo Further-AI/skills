@@ -5,6 +5,9 @@ on:
       commit:
         required: true
         type: string
+      base_commit:
+        default: ""
+        type: string
     secrets:
       evaluation_app_key:
         required: true
@@ -34,11 +37,13 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.backend-token.outputs.token }}
           SKILLS_COMMIT: ${{ inputs.commit }}
+          BASE_COMMIT: ${{ inputs.base_commit }}
         run: |
           response=$(gh api --method POST \
             -H 'X-GitHub-Api-Version: 2026-03-10' \
             repos/Further-AI/fai-automation-backend/actions/workflows/skills-evaluation.yml/dispatches \
-            -f ref=main -f "inputs[skills_commit]=$SKILLS_COMMIT")
+            -f ref=main -f "inputs[skills_commit]=$SKILLS_COMMIT" \
+            -f "inputs[base_commit]=$BASE_COMMIT")
           run_id=$(jq -er '.workflow_run_id | select(type == "number" and . > 0)' <<< "$response")
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           echo "[Backend evaluation](https://github.com/Further-AI/fai-automation-backend/actions/runs/$run_id)" >> "$GITHUB_STEP_SUMMARY"

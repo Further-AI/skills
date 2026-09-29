@@ -18,8 +18,14 @@ def run_workflow_step(
 ) -> subprocess.CompletedProcess[str]:
     """Run the workflow's actual step with GitHub Actions' fail-fast shell behavior."""
     filename = "evaluate.yml" if job == "evaluate" else "validate.yml"
-    workflow = yaml.safe_load((Path(__file__).parents[1] / ".github/workflows" / filename).read_text())
-    command = next(step["run"] for step in workflow["jobs"][job]["steps"] if step.get("name") == name)
+    workflow = yaml.safe_load(
+        (Path(__file__).parents[1] / ".github/workflows" / filename).read_text()
+    )
+    command = next(
+        step["run"]
+        for step in workflow["jobs"][job]["steps"]
+        if step.get("name") == name
+    )
     return subprocess.run(
         ["bash", "-e", "-c", command],
         cwd=cwd,
@@ -61,9 +67,15 @@ def test_workflow_packages_all_skills_and_rejects_invalid_content(
         if invalid and name == "second-skill":
             content = "Missing metadata"
         (directory / "SKILL.md").write_text(content)
-    result = run_workflow_step("validate", "Package skills", tmp_path, workflow_environment)
+    result = run_workflow_step(
+        "validate", "Package skills", tmp_path, workflow_environment
+    )
     assert result.returncode == (1 if invalid else 0), result.stderr
-    expected = ["first-skill.zip"] if invalid else ["catalog.json", *(f"{name}.zip" for name in names)]
+    expected = (
+        ["first-skill.zip"]
+        if invalid
+        else ["catalog.json", *(f"{name}.zip" for name in names)]
+    )
     assert sorted(path.name for path in (tmp_path / "dist").iterdir()) == expected
 
 
@@ -109,7 +121,9 @@ def test_publish_workflow_rejects_stale_main(tmp_path: Path, stale: bool) -> Non
     checkout = tmp_path / "checkout"
 
     def git(*args: str, cwd: Path = tmp_path) -> str:
-        return subprocess.check_output(["git", *args], cwd=cwd, stderr=subprocess.STDOUT, text=True).strip()
+        return subprocess.check_output(
+            ["git", *args], cwd=cwd, stderr=subprocess.STDOUT, text=True
+        ).strip()
 
     git("init", "--bare", str(remote))
     git("clone", str(remote), str(checkout))
@@ -147,9 +161,13 @@ def test_workflow_packages_empty_repository_after_last_skill_is_deleted(
     for filename in ["skill_bundle.py", "skill_catalog.py"]:
         source = Path(__file__).parents[1] / "scripts" / filename
         (tmp_path / "scripts" / filename).write_bytes(source.read_bytes())
-    result = run_workflow_step("validate", "Package skills", tmp_path, workflow_environment)
+    result = run_workflow_step(
+        "validate", "Package skills", tmp_path, workflow_environment
+    )
     assert result.returncode == 0, result.stderr
-    assert sorted(path.name for path in (tmp_path / "dist").iterdir()) == ["catalog.json"]
+    assert sorted(path.name for path in (tmp_path / "dist").iterdir()) == [
+        "catalog.json"
+    ]
     assert (tmp_path / "dist/catalog.json").read_text() == '{"skills":[]}'
 
 
@@ -189,12 +207,15 @@ def test_evaluation_wait_propagates_backend_result(
         ('{"workflow_run_id": 0}', False),
     ],
 )
+@pytest.mark.parametrize("base_commit", ["", "b" * 40])
 def test_dispatch_requires_the_returned_run_identity(
-    tmp_path: Path, response: str, succeeds: bool
+    tmp_path: Path, response: str, succeeds: bool, base_commit: str
 ) -> None:
     """A missing or malformed dispatch response cannot reuse an older passing run."""
     gh = tmp_path / "gh"
-    gh.write_text('#!/bin/sh\nprintf "%s" "$TEST_RESPONSE"\n')
+    gh.write_text(
+        '#!/bin/sh\nprintf "%s\\n" "$@" > dispatch-args.txt\nprintf "%s" "$TEST_RESPONSE"\n'
+    )
     gh.chmod(0o755)
     output = tmp_path / "output"
     result = run_workflow_step(
@@ -205,12 +226,17 @@ def test_dispatch_requires_the_returned_run_identity(
             **os.environ,
             "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
             "SKILLS_COMMIT": "a" * 40,
+            "BASE_COMMIT": base_commit,
             "TEST_RESPONSE": response,
             "GITHUB_OUTPUT": str(output),
             "GITHUB_STEP_SUMMARY": str(tmp_path / "summary"),
         },
     )
     assert (result.returncode == 0) == succeeds
+    assert (
+        f"inputs[base_commit]={base_commit}"
+        in (tmp_path / "dispatch-args.txt").read_text().splitlines()
+    )
     if succeeds:
         assert output.read_text().strip() == "run_id=123"
     else:
@@ -237,13 +263,25 @@ def test_pr_evaluation_uses_head_commit_and_serialized_trusted_comment_code() ->
     assert set(pr[True]["pull_request_target"]["types"]) >= {"opened", "synchronize"}
     for job in pr["jobs"].values():
         assert job["with"]["commit"] == "${{ github.event.pull_request.head.sha }}"
+    assert (
+        pr["jobs"]["evaluate"]["with"]["base_commit"]
+        == "${{ github.event.pull_request.base.sha }}"
+    )
     comment = yaml.safe_load((directory / "evaluation-comment.yml").read_text())
     job = comment["jobs"]["comment"]
-    checkout = next(step for step in job["steps"] if step.get("uses", "").startswith("actions/checkout@"))
+    checkout = next(
+        step
+        for step in job["steps"]
+        if step.get("uses", "").startswith("actions/checkout@")
+    )
     assert checkout["with"]["ref"] == "${{ github.event.pull_request.base.sha }}"
     assert job["concurrency"]["cancel-in-progress"] is False
     assert "inputs.pr" in job["concurrency"]["group"]
     evaluate = yaml.safe_load((directory / "evaluate.yml").read_text())
-    dispatch = next(step for step in evaluate["jobs"]["evaluate"]["steps"] if step.get("id") == "dispatch")
+    dispatch = next(
+        step
+        for step in evaluate["jobs"]["evaluate"]["steps"]
+        if step.get("id") == "dispatch"
+    )
     assert dispatch["env"]["SKILLS_COMMIT"] == "${{ inputs.commit }}"
     assert "-f ref=main" in dispatch["run"]

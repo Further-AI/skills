@@ -39,9 +39,10 @@ every directory under `skills/`. Open a completed run in
 and download `skill-bundles` under **Artifacts** to get one ZIP per skill and a
 `catalog.json` listing the complete repository snapshot.
 
-Each PR commit runs our `excel-generation` evaluation and updates one PR comment
-with its experiment link, scores, and assessment counts. Merges and manual main
-runs evaluate the exact main commit again before publication. Publishing waits for both `validate`
+Each PR commit evaluates added or changed skills and updates one results table
+with experiment links, scores, and assessment counts. Shared changes evaluate all
+current skills. Releases compare the exact main commit against the active staging
+catalog, including changes from previous failed releases. Publishing waits for both `validate`
 and `evaluate` to succeed. When publishing is enabled, the current `main` commit then:
 
 1. Authenticates with GitHub OIDC and reads the current backend catalog revision.
@@ -58,11 +59,17 @@ Existing pins keep their exact versions while the skill remains active. Removing
 a skill blocks future retrieval and resolution of that name, including saved pins;
 already staged content is not recalled. Historical bundles remain stored.
 Agent defaults and common skill selection stay in the backend. Publishing does not
-change rollout flags or organization/member preferences. Repository validation checks packaging. Backend evaluation uses the existing
-Assistant and LLM judge for Excel generation: file validity and completed,
-error-free evaluation block publication; completeness and functional correctness
-are advisory. Only our `excel-generation` skill is evaluated. Other
-skill types are not quality-certified by this check.
+change rollout flags or organization/member preferences. Repository validation checks packaging for every skill. Backend-owned evaluation
+profiles pin each skill's dataset, repetitions, and blocking or advisory scores.
+Scheduled trials must complete without evaluation or cleanup errors; blocking
+scores require full assessment. Missing profiles hold publication and appear as
+**Evaluation not configured**. Deleted skills need no execution trials.
+
+The initial profile covers `excel-generation`: file validity blocks publication;
+completeness and functional correctness are advisory. The runner currently
+inspects XLSX outputs only. Future formats need an inspector as well as a profile;
+adding profiles does not require changing these workflows. Paper `xlsx` remains
+outside CI coverage. The first publication evaluates the complete catalog.
 
 To package a complete local artifact, use a fresh output directory:
 

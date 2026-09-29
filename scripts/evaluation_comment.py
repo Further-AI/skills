@@ -10,12 +10,14 @@ import json
 import re
 import subprocess
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, model_validator
 
 REPOSITORY = "Further-AI/skills"
-MARKER = re.compile(r"<!-- skills-evaluation run=(\d+) attempt=(\d+) phase=(running|final) -->")
+MARKER = re.compile(
+    r"<!-- skills-evaluation run=(\d+) attempt=(\d+) phase=(running|final) -->"
+)
 
 
 class Score(BaseModel):
@@ -23,19 +25,57 @@ class Score(BaseModel):
 
     model_config = ConfigDict(allow_inf_nan=False)
     mean: float = Field(ge=0, le=1)
-    assessed: int = Field(ge=0, le=5)
+    assessed: int = Field(ge=0)
 
 
-class Summary(BaseModel):
-    """The backend's intentionally small, public-safe score artifact."""
+type Metric = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*$")]
+type Threshold = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
 
-    commit: str = Field(pattern=r"^[0-9a-f]{40}$")
-    status: Literal["passed", "failed", "not_applicable"]
+
+class SkillResult(BaseModel):
+    """One skill's aggregate scores and trusted evaluation policy."""
+
+    name: str = Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+    status: Literal["passed", "failed", "not_configured", "error"]
+    scheduled: int | None = Field(default=None, gt=0)
     experiment_url: str | None = Field(
         default=None,
         pattern=r"^https://(?:www\.)?braintrust\.dev/[A-Za-z0-9%._~:/?&=+\-]+$",
     )
-    scores: dict[str, Score]
+    blocking_scores: dict[Metric, Threshold] = Field(default_factory=dict)
+    advisory_scores: list[Metric] = Field(default_factory=list)
+    scores: dict[Metric, Score] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def valid_coverage(self) -> "SkillResult":
+        """Reject impossible assessment counts and passed results without a schedule."""
+        if self.status == "passed" and self.scheduled is None:
+            raise ValueError("Passed evaluations require a schedule")
+        if any(
+            self.scheduled is None or score.assessed > self.scheduled
+            for score in self.scores.values()
+        ):
+            raise ValueError("Assessments exceed scheduled trials")
+        return self
+
+
+class Summary(BaseModel):
+    """The backend's public-safe results for all affected skills."""
+
+    commit: str = Field(pattern=r"^[0-9a-f]{40}$")
+    status: Literal["passed", "failed", "not_applicable"]
+    skills: list[SkillResult]
+
+    @model_validator(mode="after")
+    def consistent_status(self) -> "Summary":
+        """Do not accept an overall pass that hides a failed or missing profile."""
+        if self.status == "passed" and (
+            not self.skills or any(skill.status != "passed" for skill in self.skills)
+        ):
+            raise ValueError("Passed summary requires passing skill results")
+        if self.status == "not_applicable" and self.skills:
+            raise ValueError("Not applicable requires no affected skills")
+        return self
 
 
 class Head(BaseModel):
@@ -76,70 +116,125 @@ class Update(BaseModel):
     attempt: int = Field(gt=0)
 
 
-def score_text(summary: Summary | None, dimension: str, *, running: bool) -> str:
-    """Format one score without presenting missing evidence as zero.
+def score_text(skill: SkillResult, dimension: str) -> str:
+    """Distinguish inapplicable, unassessed, and measured dimensions.
 
     Args:
-        summary: Available backend results.
+        skill: Profile policy and recorded results.
         dimension: Metric to display.
-        running: Whether judging has yet to finish.
 
     Returns:
-        Percentage and assessment count, or an explicit unavailable state.
+        Score and dynamic assessment count, or an explicit unavailable state.
     """
-    if running:
-        return "Pending"
-    score = summary.scores.get(dimension) if summary else None
+    if skill.status == "not_configured":
+        return "—"
+    if (
+        dimension not in skill.blocking_scores
+        and dimension not in skill.advisory_scores
+    ):
+        return "N/A"
+    score = skill.scores.get(dimension)
+    scheduled = str(skill.scheduled) if skill.scheduled is not None else "?"
     if score is None or score.assessed == 0:
-        return "Unassessed (0/5)"
-    return f"{score.mean * 100:.1f}% ({score.assessed}/5 assessed)"
+        return f"Unassessed (0/{scheduled})"
+    return f"{score.mean * 100:.1f}% ({score.assessed}/{scheduled} assessed)"
+
+
+def result_table(skills: list[SkillResult]) -> str:
+    """Render one row per skill with only the dimensions selected by its profile.
+
+    Args:
+        skills: Validated public results.
+
+    Returns:
+        Markdown table and each skill's blocking criteria.
+    """
+    metrics = sorted(
+        {
+            metric
+            for skill in skills
+            for metric in [*skill.blocking_scores, *skill.advisory_scores]
+        }
+    )
+    headers = [
+        "Skill",
+        "Experiment",
+        *(metric.replace("_", " ").capitalize() for metric in metrics),
+        "Outcome",
+    ]
+    lines = ["| " + " | ".join(headers) + " |", "|" + "---|" * len(headers)]
+    outcomes = {
+        "passed": "Passed",
+        "failed": "Failed",
+        "error": "Evaluation incomplete",
+        "not_configured": "Evaluation not configured",
+    }
+    for skill in skills:
+        experiment = (
+            f"[Braintrust]({skill.experiment_url})" if skill.experiment_url else "—"
+        )
+        cells = [
+            skill.name,
+            experiment,
+            *(score_text(skill, metric) for metric in metrics),
+            outcomes[skill.status],
+        ]
+        lines.append("| " + " | ".join(cells) + " |")
+    lines.append(
+        "\nScores are means on a 0–100 scale; counts show assessed/scheduled trials."
+    )
+    for skill in skills:
+        if skill.status == "not_configured":
+            continue
+        criteria = ", ".join(
+            f"{metric.replace('_', ' ')} ≥ {threshold * 100:g}%"
+            for metric, threshold in skill.blocking_scores.items()
+        )
+        lines.append(
+            f"\n`{skill.name}`: all trials must complete without evaluation or cleanup errors. "
+            f"Blocking scores require full assessment: {criteria or 'none'}. Other displayed scores are advisory."
+        )
+    return "\n".join(lines) + "\n"
 
 
 def render(update: Update, summary: Summary | None) -> str:
-    """Build the results table using only safe links and aggregate scores.
+    """Build one commit-bound results comment, never treating absent results as a pass.
 
     Args:
         update: Workflow identity and outcome.
         summary: Validated results belonging to the same commit.
 
     Returns:
-        Markdown for the single bot-owned evaluation comment.
+        Markdown for the bot-owned evaluation comment.
     """
     if summary is not None and summary.commit != update.commit:
         raise ValueError("Summary belongs to a different commit")
     running = update.state == "running"
-    outcome = "Running"
-    if not running:
+    phase = "running" if running else "final"
+    commit = (
+        f"[{update.commit[:7]}](https://github.com/{REPOSITORY}/commit/{update.commit})"
+    )
+    body = (
+        f"<!-- skills-evaluation run={update.run} attempt={update.attempt} phase={phase} -->\n"
+        f"### Skills evaluation\n\nTested commit: {commit}\n\n"
+    )
+    if running:
+        body += "Pending. Previous results are outdated; this commit is awaiting evaluation.\n"
+    else:
         outcome = "Failed — evaluation incomplete"
         if update.state == "cancelled":
             outcome = "Cancelled"
-        elif summary is not None and summary.status == "failed":
-            outcome = "Failed"
-        elif summary is not None and update.state == "success":
-            outcome = {"passed": "Passed", "failed": "Failed", "not_applicable": "Not applicable"}[
-                summary.status
-            ]
-    experiment = (
-        f"[Braintrust]({summary.experiment_url})" if summary and summary.experiment_url else "—"
-    )
-    cells = [
-        score_text(summary, metric, running=running)
-        for metric in ("file_validity", "completeness", "functional_correctness")
-    ]
-    commit = f"[{update.commit[:7]}](https://github.com/{REPOSITORY}/commit/{update.commit})"
-    phase = "running" if running else "final"
-    body = (
-        f"<!-- skills-evaluation run={update.run} attempt={update.attempt} phase={phase} -->\n"
-        "### Excel generation evaluation\n\n"
-        "| Commit | Experiment | File validity | Completeness | Functional correctness | Gate |\n"
-        "|---|---|---|---|---|---|\n"
-        f"| {commit} | {experiment} | {' | '.join(cells)} | {outcome} |\n\n"
-        "Completeness and functional correctness are advisory. Scores are means on a 0–100 scale.\n"
-    )
-    if running:
-        body += "Previous results are outdated; this commit is awaiting evaluation.\n"
-    if summary and summary.status == "not_applicable":
-        body += "This commit does not contain `excel-generation`; no skill evaluation ran.\n"
+        elif update.state == "success" and summary is not None:
+            outcome = {
+                "passed": "Passed",
+                "failed": "Failed",
+                "not_applicable": "No affected skills",
+            }[summary.status]
+        body += f"**Gate: {outcome}**\n\n"
+        if summary and summary.skills:
+            body += result_table(summary.skills)
+        elif summary is None:
+            body += "Scores are unassessed because no result summary is available.\n"
     if update.backend_run is not None:
         body += f"\n[Backend run](https://github.com/Further-AI/fai-automation-backend/actions/runs/{update.backend_run})\n"
     return body
@@ -181,14 +276,17 @@ def publish(update: Update, summary: Summary | None) -> None:
     """
     body = render(update, summary)
     pages = TypeAdapter(list[list[Comment]]).validate_json(
-        github(f"repos/{REPOSITORY}/issues/{update.pr}/comments?per_page=100", pages=True)
+        github(
+            f"repos/{REPOSITORY}/issues/{update.pr}/comments?per_page=100", pages=True
+        )
     )
     existing = next(
         (
             comment
             for page in pages
             for comment in page
-            if comment.user.login == "github-actions[bot]" and MARKER.match(comment.body or "")
+            if comment.user.login == "github-actions[bot]"
+            and MARKER.match(comment.body or "")
         ),
         None,
     )
@@ -205,13 +303,21 @@ def publish(update: Update, summary: Summary | None) -> None:
         ):
             return
     # Recheck immediately before writing, while the workflow holds the PR comment lock.
-    pr = PullRequest.model_validate_json(github(f"repos/{REPOSITORY}/pulls/{update.pr}"))
+    pr = PullRequest.model_validate_json(
+        github(f"repos/{REPOSITORY}/pulls/{update.pr}")
+    )
     if pr.state != "open" or pr.head.sha != update.commit:
         return
     if existing is None:
-        github(f"repos/{REPOSITORY}/issues/{update.pr}/comments", method="POST", body=body)
+        github(
+            f"repos/{REPOSITORY}/issues/{update.pr}/comments", method="POST", body=body
+        )
     else:
-        github(f"repos/{REPOSITORY}/issues/comments/{existing.id}", method="PATCH", body=body)
+        github(
+            f"repos/{REPOSITORY}/issues/comments/{existing.id}",
+            method="PATCH",
+            body=body,
+        )
 
 
 def main() -> None:
@@ -233,7 +339,9 @@ def main() -> None:
         }
     )
     summary = (
-        Summary.model_validate_json(args.summary.read_text()) if args.summary.exists() else None
+        Summary.model_validate_json(args.summary.read_text())
+        if args.summary.exists()
+        else None
     )
     publish(update, summary)
 

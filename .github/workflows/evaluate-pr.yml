@@ -26,6 +26,7 @@ jobs:
     uses: ./.github/workflows/evaluate.yml
     with:
       commit: ${{ github.event.pull_request.head.sha }}
+      base_commit: ${{ github.event.pull_request.base.sha }}
     secrets:
       evaluation_app_key: ${{ secrets.SKILLS_EVAL_APP_PRIVATE_KEY }}
   report:

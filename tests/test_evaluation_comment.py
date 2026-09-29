@@ -22,11 +22,20 @@ def summary(update: subject.Update) -> subject.Summary:
     return subject.Summary(
         commit=update.commit,
         status="passed",
-        experiment_url="https://www.braintrust.dev/app/FurtherAI/p/Skills%20Evaluation/experiments/test",
-        scores={
-            "file_validity": subject.Score(mean=1, assessed=5),
-            "completeness": subject.Score(mean=0.75, assessed=3),
-        },
+        skills=[
+            subject.SkillResult(
+                name="excel-generation",
+                status="passed",
+                scheduled=5,
+                experiment_url="https://www.braintrust.dev/app/FurtherAI/p/Skills%20Evaluation/experiments/test",
+                blocking_scores={"file_validity": 1},
+                advisory_scores=["completeness", "functional_correctness"],
+                scores={
+                    "file_validity": subject.Score(mean=1, assessed=5),
+                    "completeness": subject.Score(mean=0.75, assessed=3),
+                },
+            )
+        ],
     )
 
 
@@ -34,8 +43,8 @@ def test_table_includes_experiment_partial_coverage_and_unassessed_scores(
     update: subject.Update, summary: subject.Summary
 ) -> None:
     text = subject.render(update, summary)
-    assert summary.experiment_url is not None
-    assert summary.experiment_url in text
+    assert summary.skills[0].experiment_url is not None
+    assert summary.skills[0].experiment_url in text
     assert "100.0% (5/5 assessed)" in text
     assert "75.0% (3/5 assessed)" in text
     assert "Unassessed (0/5)" in text
@@ -43,10 +52,12 @@ def test_table_includes_experiment_partial_coverage_and_unassessed_scores(
 
 
 @pytest.mark.parametrize("state", ["failure", "cancelled", "skipped", "success"])
-def test_missing_summary_never_reports_a_pass(update: subject.Update, state: str) -> None:
+def test_missing_summary_never_reports_a_pass(
+    update: subject.Update, state: str
+) -> None:
     text = subject.render(update.model_copy(update={"state": state}), None)
     assert "Passed" not in text
-    assert "Unassessed" in text
+    assert "unassessed" in text
 
 
 def test_pending_update_invalidates_old_scores(update: subject.Update) -> None:
@@ -72,14 +83,16 @@ def test_summary_for_another_commit_is_rejected(
 )
 def test_summary_rejects_links_outside_braintrust(url: str) -> None:
     with pytest.raises(ValidationError):
-        subject.Summary(commit="a" * 40, status="passed", experiment_url=url, scores={})
+        subject.SkillResult(name="example", status="error", experiment_url=url)
 
 
 @pytest.mark.parametrize("existing", [False, True])
 def test_publisher_creates_or_updates_its_own_comment(
     update: subject.Update, summary: subject.Summary, existing: bool
 ) -> None:
-    comments = [{"id": 8, "body": subject.render(update, None), "user": {"login": "human"}}]
+    comments = [
+        {"id": 8, "body": subject.render(update, None), "user": {"login": "human"}}
+    ]
     if existing:
         comments.append(
             {
@@ -109,7 +122,9 @@ def test_changed_or_closed_pr_receives_no_update(
     update: subject.Update, state: str, sha: str
 ) -> None:
     with patch.object(
-        subject, "github", side_effect=["[[]]", json.dumps({"state": state, "head": {"sha": sha}})]
+        subject,
+        "github",
+        side_effect=["[[]]", json.dumps({"state": state, "head": {"sha": sha}})],
     ) as api:
         subject.publish(update, None)
     assert all(call.kwargs.get("method", "GET") == "GET" for call in api.call_args_list)
@@ -117,7 +132,11 @@ def test_changed_or_closed_pr_receives_no_update(
 
 @pytest.mark.parametrize(
     "run,attempt,phase,state",
-    [(101, 1, "running", "success"), (100, 2, "final", "success"), (100, 1, "final", "running")],
+    [
+        (101, 1, "running", "success"),
+        (100, 2, "final", "success"),
+        (100, 1, "final", "running"),
+    ],
 )
 def test_older_update_cannot_replace_newer_or_final_comment(
     update: subject.Update, run: int, attempt: int, phase: str, state: str
@@ -135,7 +154,9 @@ def test_older_update_cannot_replace_newer_or_final_comment(
 def test_api_writes_body_as_json_without_shell_interpolation() -> None:
     body = "Literal `code` and $(not a command)\nNext line"
     with patch.object(subject.subprocess, "check_output", return_value="{}") as command:
-        subject.github("repos/Further-AI/skills/issues/13/comments", method="POST", body=body)
+        subject.github(
+            "repos/Further-AI/skills/issues/13/comments", method="POST", body=body
+        )
     assert json.loads(command.call_args.kwargs["input"]) == {"body": body}
     assert command.call_args.args[0][-2:] == ["--input", "-"]
 
@@ -171,3 +192,58 @@ def test_cli_reads_summary_and_passes_validated_identity(
         subject.main()
     assert publish.call_args.args[0].backend_run == 456
     assert publish.call_args.args[1] == summary
+
+
+def test_multi_skill_table_uses_dynamic_counts_and_distinguishes_not_applicable(
+    update: subject.Update, summary: subject.Summary
+) -> None:
+    summary.skills.append(
+        subject.SkillResult(
+            name="summarize",
+            status="passed",
+            scheduled=12,
+            advisory_scores=["completeness"],
+            scores={"completeness": subject.Score(mean=0.8, assessed=10)},
+        )
+    )
+    summary.skills.append(
+        subject.SkillResult(name="new-skill", status="not_configured")
+    )
+    summary.status = "failed"
+    text = subject.render(update, summary)
+    assert "80.0% (10/12 assessed)" in text
+    assert "summarize" in text and "N/A" in text
+    assert "new-skill" in text and "Evaluation not configured" in text
+    assert "**Gate: Failed**" in text
+    assert "Functional correctness" in text
+
+
+@pytest.mark.parametrize("scheduled,assessed", [(None, 1), (2, 3)])
+def test_impossible_assessment_counts_are_rejected(
+    scheduled: int | None, assessed: int
+) -> None:
+    with pytest.raises(ValidationError, match="Assessments"):
+        subject.SkillResult(
+            name="example",
+            status="error",
+            scheduled=scheduled,
+            scores={"completeness": subject.Score(mean=1, assessed=assessed)},
+        )
+
+
+def test_empty_diff_reports_no_affected_skills(update: subject.Update) -> None:
+    text = subject.render(
+        update,
+        subject.Summary(commit=update.commit, status="not_applicable", skills=[]),
+    )
+    assert "No affected skills" in text
+    assert "Passed" not in text
+
+
+def test_overall_pass_cannot_hide_unconfigured_skill(update: subject.Update) -> None:
+    with pytest.raises(ValidationError, match="passing skill results"):
+        subject.Summary(
+            commit=update.commit,
+            status="passed",
+            skills=[subject.SkillResult(name="new-skill", status="not_configured")],
+        )
