@@ -105,10 +105,13 @@ Deploy the evaluation workflows to both repositories' `main` branches, then set:
 
 | Repository | Setting | Value |
 | --- | --- | --- |
-| Skills | `SKILLS_EVAL_APP_ID` | App installed on the backend with Actions read/write |
+| Skills | `SKILLS_EVAL_APP_ID` | App installed on the backend with Actions read/write and Checks read |
 | Skills | `SKILLS_EVAL_APP_PRIVATE_KEY` (secret) | That App's private key |
 | Backend | `SKILLS_EVAL_JUDGE_TEMPLATE` | Staging judge image |
 | Backend | `SKILLS_EVAL_BRAINTRUST_API_KEY` (secret) | Access to evaluation datasets and project |
+
+For an existing App, approve the added Checks permission on its backend
+installation before running evaluation. `gh run watch` requires this access.
 
 The backend needs its staging evaluation services. Missing configuration,
 failures, and timeouts block publishing.

@@ -33,6 +33,7 @@ jobs:
           owner: Further-AI
           repositories: fai-automation-backend
           permission-actions: write
+          permission-checks: read
       - name: Start evaluation for this exact commit
         id: dispatch
         env:
