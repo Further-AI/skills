@@ -39,8 +39,9 @@ every directory under `skills/`. Open a completed run in
 and download `skill-bundles` under **Artifacts** to get one ZIP per skill and a
 `catalog.json` listing the complete repository snapshot.
 
-Every push to `main` (including a PR merge) and manual main run first requests
-a backend evaluation of that exact commit. Publishing waits for both `validate`
+Each PR commit runs our `excel-generation` evaluation and updates one PR comment
+with its experiment link, scores, and assessment counts. Merges and manual main
+runs evaluate the exact main commit again before publication. Publishing waits for both `validate`
 and `evaluate` to succeed. When publishing is enabled, the current `main` commit then:
 
 1. Authenticates with GitHub OIDC and reads the current backend catalog revision.
@@ -60,7 +61,7 @@ Agent defaults and common skill selection stay in the backend. Publishing does n
 change rollout flags or organization/member preferences. Repository validation checks packaging. Backend evaluation uses the existing
 Assistant and LLM judge for Excel generation: file validity and completed,
 error-free evaluation block publication; completeness and functional correctness
-are advisory. Only `excel-generation` and `xlsx` have evaluation profiles. Other
+are advisory. Only our `excel-generation` skill is evaluated. Other
 skill types are not quality-certified by this check.
 
 To package a complete local artifact, use a fresh output directory:
@@ -78,16 +79,19 @@ Deploy `.github/workflows/skills-evaluation.yml` and its evaluator to backend
   `Further-AI/fai-automation-backend` with Actions read/write permission.
 - Secret `SKILLS_EVAL_APP_PRIVATE_KEY`: that App's private key.
 
-The backend also requires its judge-template variable, Braintrust credential,
-and existing staging evaluation services; see the backend evaluation README.
+In the backend, set `SKILLS_EVAL_JUDGE_TEMPLATE` to a staging judge image and
+`SKILLS_EVAL_BRAINTRUST_API_KEY` to a credential with access to the pinned
+datasets and evaluation project. The existing staging evaluation services must
+be available.
 Missing configuration, failed evaluation, or a timeout blocks publishing.
-The backend run is linked from the `evaluate` job summary; source documents,
-workbooks, and detailed reports remain in the private backend repository.
+The PR comment includes aggregate scores and the Braintrust experiment link;
+source documents, workbooks, and detailed reports stay in the private backend.
 
-This runs **after merging**, and does not add a pre-merge quality requirement.
-The existing required `validate` check remains the PR gate. The backend run has
-a 45-minute limit and this workflow waits up to 55 minutes, including queue time.
-A failed release leaves the previously active catalog unchanged.
+PR evaluation runs on opening and each new commit. Its trigger and comment code
+come from trusted main, never the candidate branch; these workflows must land on
+main before they become active. Automatic PR runs cover branches in this repository;
+forks need a maintainer-controlled evaluation. Existing required checks remain
+unchanged. Failed post-merge evaluation leaves the active catalog unchanged.
 
 ## Enable staging publishing
 

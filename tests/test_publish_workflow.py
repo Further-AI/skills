@@ -17,7 +17,8 @@ def run_workflow_step(
     env: dict[str, str],
 ) -> subprocess.CompletedProcess[str]:
     """Run the workflow's actual step with GitHub Actions' fail-fast shell behavior."""
-    workflow = yaml.safe_load((Path(__file__).parents[1] / ".github/workflows/validate.yml").read_text())
+    filename = "evaluate.yml" if job == "evaluate" else "validate.yml"
+    workflow = yaml.safe_load((Path(__file__).parents[1] / ".github/workflows" / filename).read_text())
     command = next(step["run"] for step in workflow["jobs"][job]["steps"] if step.get("name") == name)
     return subprocess.run(
         ["bash", "-e", "-c", command],
@@ -198,7 +199,7 @@ def test_dispatch_requires_the_returned_run_identity(
     output = tmp_path / "output"
     result = run_workflow_step(
         "evaluate",
-        "Start evaluation for this exact merge",
+        "Start evaluation for this exact commit",
         tmp_path,
         {
             **os.environ,
@@ -226,3 +227,23 @@ def test_publishing_requires_validation_and_evaluation() -> None:
     assert "always()" not in jobs["publish"]["if"]
     assert "continue-on-error" not in jobs["evaluate"]
     assert jobs["evaluate"]["needs"] == "validate"
+
+
+def test_pr_evaluation_uses_head_commit_and_serialized_trusted_comment_code() -> None:
+    """Catch accidental use of the merge ref or execution of PR code with secrets."""
+    directory = Path(__file__).parents[1] / ".github/workflows"
+    pr = yaml.safe_load((directory / "evaluate-pr.yml").read_text())
+    # PyYAML's YAML 1.1 loader reads the unquoted GitHub `on` key as True.
+    assert set(pr[True]["pull_request_target"]["types"]) >= {"opened", "synchronize"}
+    for job in pr["jobs"].values():
+        assert job["with"]["commit"] == "${{ github.event.pull_request.head.sha }}"
+    comment = yaml.safe_load((directory / "evaluation-comment.yml").read_text())
+    job = comment["jobs"]["comment"]
+    checkout = next(step for step in job["steps"] if step.get("uses", "").startswith("actions/checkout@"))
+    assert checkout["with"]["ref"] == "${{ github.event.pull_request.base.sha }}"
+    assert job["concurrency"]["cancel-in-progress"] is False
+    assert "inputs.pr" in job["concurrency"]["group"]
+    evaluate = yaml.safe_load((directory / "evaluate.yml").read_text())
+    dispatch = next(step for step in evaluate["jobs"]["evaluate"]["steps"] if step.get("id") == "dispatch")
+    assert dispatch["env"]["SKILLS_COMMIT"] == "${{ inputs.commit }}"
+    assert "-f ref=main" in dispatch["run"]

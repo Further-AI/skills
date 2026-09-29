@@ -1,0 +1,41 @@
+name: Evaluate Skills PR
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+permissions:
+  contents: read
+  pull-requests: write
+concurrency:
+  group: skills-pr-evaluation-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  pending:
+    # Never check out or execute candidate code with repository credentials.
+    # Fork evaluations require a maintainer-controlled run rather than automatic secrets access.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/evaluation-comment.yml
+    with:
+      pr: ${{ github.event.pull_request.number }}
+      commit: ${{ github.event.pull_request.head.sha }}
+      state: running
+    secrets:
+      evaluation_app_key: ${{ secrets.SKILLS_EVAL_APP_PRIVATE_KEY }}
+  evaluate:
+    needs: pending
+    uses: ./.github/workflows/evaluate.yml
+    with:
+      commit: ${{ github.event.pull_request.head.sha }}
+    secrets:
+      evaluation_app_key: ${{ secrets.SKILLS_EVAL_APP_PRIVATE_KEY }}
+  report:
+    needs: [pending, evaluate]
+    if: always() && needs.pending.result != 'skipped'
+    uses: ./.github/workflows/evaluation-comment.yml
+    with:
+      pr: ${{ github.event.pull_request.number }}
+      commit: ${{ github.event.pull_request.head.sha }}
+      state: ${{ needs.evaluate.result }}
+      backend_run: ${{ needs.evaluate.outputs.run_id }}
+    secrets:
+      evaluation_app_key: ${{ secrets.SKILLS_EVAL_APP_PRIVATE_KEY }}

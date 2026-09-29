@@ -35,42 +35,11 @@ jobs:
   evaluate:
     needs: validate
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
-    timeout-minutes: 55
-    steps:
-      - name: Mint backend workflow token
-        id: backend-token
-        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
-        with:
-          app-id: ${{ vars.SKILLS_EVAL_APP_ID }}
-          private-key: ${{ secrets.SKILLS_EVAL_APP_PRIVATE_KEY }}
-          owner: Further-AI
-          repositories: fai-automation-backend
-          permission-actions: write
-      - name: Start evaluation for this exact merge
-        id: dispatch
-        env:
-          GH_TOKEN: ${{ steps.backend-token.outputs.token }}
-          SKILLS_COMMIT: ${{ github.sha }}
-        run: |
-          response=$(gh api --method POST \
-            -H 'X-GitHub-Api-Version: 2026-03-10' \
-            repos/Further-AI/fai-automation-backend/actions/workflows/skills-evaluation.yml/dispatches \
-            -f ref=main -f "inputs[skills_commit]=$SKILLS_COMMIT")
-          run_id=$(jq -er '.workflow_run_id | select(type == "number" and . > 0)' <<< "$response")
-          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-          echo "[Backend evaluation](https://github.com/Further-AI/fai-automation-backend/actions/runs/$run_id)" >> "$GITHUB_STEP_SUMMARY"
-      - name: Wait for evaluation to pass
-        env:
-          GH_TOKEN: ${{ steps.backend-token.outputs.token }}
-          RUN_ID: ${{ steps.dispatch.outputs.run_id }}
-        run: gh run watch "$RUN_ID" --repo Further-AI/fai-automation-backend --interval 20 --exit-status
-      - name: Cancel unfinished evaluation when this gate fails
-        if: ${{ (failure() || cancelled()) && steps.dispatch.outputs.run_id != '' }}
-        env:
-          GH_TOKEN: ${{ steps.backend-token.outputs.token }}
-          RUN_ID: ${{ steps.dispatch.outputs.run_id }}
-        run: gh run cancel "$RUN_ID" --repo Further-AI/fai-automation-backend
+    uses: ./.github/workflows/evaluate.yml
+    with:
+      commit: ${{ github.sha }}
+    secrets:
+      evaluation_app_key: ${{ secrets.SKILLS_EVAL_APP_PRIVATE_KEY }}
 
   publish:
     needs: [validate, evaluate]
