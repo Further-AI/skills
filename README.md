@@ -39,7 +39,9 @@ every directory under `skills/`. Open a completed run in
 and download `skill-bundles` under **Artifacts** to get one ZIP per skill and a
 `catalog.json` listing the complete repository snapshot.
 
-When publishing is enabled, a successful run on the current `main` commit also:
+Every push to `main` (including a PR merge) and manual main run first requests
+a backend evaluation of that exact commit. Publishing waits for both `validate`
+and `evaluate` to succeed. When publishing is enabled, the current `main` commit then:
 
 1. Authenticates with GitHub OIDC and reads the current backend catalog revision.
 2. Uploads every validated ZIP to US staging as an immutable Azure bundle.
@@ -55,14 +57,37 @@ Existing pins keep their exact versions while the skill remains active. Removing
 a skill blocks future retrieval and resolution of that name, including saved pins;
 already staged content is not recalled. Historical bundles remain stored.
 Agent defaults and common skill selection stay in the backend. Publishing does not
-change rollout flags or organization/member preferences. These checks validate
-packaging; they do not evaluate task quality.
+change rollout flags or organization/member preferences. Repository validation checks packaging. Backend evaluation uses the existing
+Assistant and LLM judge for Excel generation: file validity and completed,
+error-free evaluation block publication; completeness and functional correctness
+are advisory. Only `excel-generation` and `xlsx` have evaluation profiles. Other
+skill types are not quality-certified by this check.
 
 To package a complete local artifact, use a fresh output directory:
 
 ```sh
 uv run python -m scripts.skill_catalog skills --output dist/release
 ```
+
+## Configure the backend evaluation gate
+
+Deploy `.github/workflows/skills-evaluation.yml` and its evaluator to backend
+`main` before merging this workflow change. In this repository, configure:
+
+- Variable `SKILLS_EVAL_APP_ID`: a GitHub App installed on
+  `Further-AI/fai-automation-backend` with Actions read/write permission.
+- Secret `SKILLS_EVAL_APP_PRIVATE_KEY`: that App's private key.
+
+The backend also requires its judge-template variable, Braintrust credential,
+and existing staging evaluation services; see the backend evaluation README.
+Missing configuration, failed evaluation, or a timeout blocks publishing.
+The backend run is linked from the `evaluate` job summary; source documents,
+workbooks, and detailed reports remain in the private backend repository.
+
+This runs **after merging**, and does not add a pre-merge quality requirement.
+The existing required `validate` check remains the PR gate. The backend run has
+a 45-minute limit and this workflow waits up to 55 minutes, including queue time.
+A failed release leaves the previously active catalog unchanged.
 
 ## Enable staging publishing
 

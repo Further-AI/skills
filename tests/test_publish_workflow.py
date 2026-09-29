@@ -150,3 +150,79 @@ def test_workflow_packages_empty_repository_after_last_skill_is_deleted(
     assert result.returncode == 0, result.stderr
     assert sorted(path.name for path in (tmp_path / "dist").iterdir()) == ["catalog.json"]
     assert (tmp_path / "dist/catalog.json").read_text() == '{"skills":[]}'
+
+
+@pytest.mark.parametrize("conclusion", ["success", "failure", "cancelled", "timed_out"])
+def test_evaluation_wait_propagates_backend_result(
+    tmp_path: Path, conclusion: str
+) -> None:
+    """Exercise the actual wait step; unsuccessful backend runs must block release."""
+    gh = tmp_path / "gh"
+    gh.write_text(
+        "#!/bin/sh\n"
+        'test "$1 $2 $3" = "run watch 123" || exit 2\n'
+        'case " $* " in *" --exit-status "*) ;; *) exit 3;; esac\n'
+        'test "$TEST_CONCLUSION" = success\n'
+    )
+    gh.chmod(0o755)
+    result = run_workflow_step(
+        "evaluate",
+        "Wait for evaluation to pass",
+        tmp_path,
+        {
+            **os.environ,
+            "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
+            "RUN_ID": "123",
+            "TEST_CONCLUSION": conclusion,
+        },
+    )
+    assert (result.returncode == 0) == (conclusion == "success")
+
+
+@pytest.mark.parametrize(
+    "response, succeeds",
+    [
+        ('{"workflow_run_id": 123}', True),
+        ("{}", False),
+        ('{"workflow_run_id": "wrong"}', False),
+        ('{"workflow_run_id": 0}', False),
+    ],
+)
+def test_dispatch_requires_the_returned_run_identity(
+    tmp_path: Path, response: str, succeeds: bool
+) -> None:
+    """A missing or malformed dispatch response cannot reuse an older passing run."""
+    gh = tmp_path / "gh"
+    gh.write_text('#!/bin/sh\nprintf "%s" "$TEST_RESPONSE"\n')
+    gh.chmod(0o755)
+    output = tmp_path / "output"
+    result = run_workflow_step(
+        "evaluate",
+        "Start evaluation for this exact merge",
+        tmp_path,
+        {
+            **os.environ,
+            "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
+            "SKILLS_COMMIT": "a" * 40,
+            "TEST_RESPONSE": response,
+            "GITHUB_OUTPUT": str(output),
+            "GITHUB_STEP_SUMMARY": str(tmp_path / "summary"),
+        },
+    )
+    assert (result.returncode == 0) == succeeds
+    if succeeds:
+        assert output.read_text().strip() == "run_id=123"
+    else:
+        assert not output.exists()
+
+
+def test_publishing_requires_validation_and_evaluation() -> None:
+    """Neither a failed nor a skipped evaluation may bypass the publish dependency."""
+    workflow = yaml.safe_load(
+        (Path(__file__).parents[1] / ".github/workflows/validate.yml").read_text()
+    )
+    jobs = workflow["jobs"]
+    assert set(jobs["publish"]["needs"]) == {"validate", "evaluate"}
+    assert "always()" not in jobs["publish"]["if"]
+    assert "continue-on-error" not in jobs["evaluate"]
+    assert jobs["evaluate"]["needs"] == "validate"
