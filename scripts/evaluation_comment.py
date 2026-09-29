@@ -28,6 +28,8 @@ class Score(BaseModel):
     assessed: int = Field(ge=0)
 
 
+type SkillName = Annotated[str, Field(pattern=r"^[a-z0-9]+(?:-[a-z0-9]+)*$")]
+
 type Metric = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]*$")]
 type Threshold = Annotated[float, Field(ge=0, le=1, allow_inf_nan=False)]
 
@@ -65,6 +67,7 @@ class Summary(BaseModel):
     commit: str = Field(pattern=r"^[0-9a-f]{40}$")
     status: Literal["passed", "failed", "not_applicable"]
     skills: list[SkillResult]
+    skipped_skills: list[SkillName] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def consistent_status(self) -> "Summary":
@@ -167,7 +170,7 @@ def result_table(skills: list[SkillResult]) -> str:
         "passed": "Passed",
         "failed": "Failed",
         "error": "Evaluation incomplete",
-        "not_configured": "Evaluation not configured",
+        "not_configured": "Enabled without an evaluation profile",
     }
     for skill in skills:
         experiment = (
@@ -228,13 +231,16 @@ def render(update: Update, summary: Summary | None) -> str:
             outcome = {
                 "passed": "Passed",
                 "failed": "Failed",
-                "not_applicable": "No affected skills",
+                "not_applicable": "No affected skills with evaluation profiles",
             }[summary.status]
         body += f"**Gate: {outcome}**\n\n"
         if summary and summary.skills:
             body += result_table(summary.skills)
         elif summary is None:
             body += "Scores are unassessed because no result summary is available.\n"
+    if not running and summary and summary.skipped_skills:
+        skipped = ", ".join(f"`{name}`" for name in summary.skipped_skills)
+        body += f"\nNot evaluated (disabled, no profile): {skipped}.\n"
     if update.backend_run is not None:
         body += f"\n[Backend run](https://github.com/Further-AI/fai-automation-backend/actions/runs/{update.backend_run})\n"
     return body

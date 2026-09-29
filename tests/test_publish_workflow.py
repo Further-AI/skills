@@ -10,6 +10,8 @@ from textwrap import dedent
 import pytest
 import yaml
 
+from scripts.evaluation_comment import Summary, Update, render
+
 
 def run_workflow_step(
     job: str,
@@ -72,7 +74,7 @@ def test_workflow_packages_all_skills_and_rejects_invalid_content(
             content = "Missing metadata"
         (directory / "SKILL.md").write_text(content)
     result = run_workflow_step(
-        "validate", "Package skills", tmp_path, workflow_environment
+        "publish", "Package skills", tmp_path, workflow_environment
     )
     assert result.returncode == (1 if invalid else 0), result.stderr
     expected = (
@@ -166,7 +168,7 @@ def test_workflow_packages_empty_repository_after_last_skill_is_deleted(
         source = Path(__file__).parents[1] / "scripts" / filename
         (tmp_path / "scripts" / filename).write_bytes(source.read_bytes())
     result = run_workflow_step(
-        "validate", "Package skills", tmp_path, workflow_environment
+        "publish", "Package skills", tmp_path, workflow_environment
     )
     assert result.returncode == 0, result.stderr
     assert sorted(path.name for path in (tmp_path / "dist").iterdir()) == [
@@ -263,6 +265,12 @@ def test_publishing_requires_validation_and_evaluation() -> None:
     assert "always()" not in jobs["publish"]["if"]
     assert "continue-on-error" not in jobs["evaluate"]
     assert jobs["evaluate"]["needs"] == "validate"
+    assert all(
+        step.get("name") != "Package skills" for step in jobs["validate"]["steps"]
+    )
+    assert any(
+        step.get("name") == "Package skills" for step in jobs["publish"]["steps"]
+    )
 
 
 def test_pr_evaluation_uses_head_commit_and_serialized_trusted_comment_code() -> None:
@@ -295,3 +303,47 @@ def test_pr_evaluation_uses_head_commit_and_serialized_trusted_comment_code() ->
     )
     assert dispatch["env"]["SKILLS_COMMIT"] == "${{ inputs.commit }}"
     assert "-f ref=main" in dispatch["run"]
+
+
+@pytest.mark.parametrize("blocked", [False, True])
+def test_pr_comment_distinguishes_skipped_skills_from_uncovered_enablement(
+    blocked: bool,
+) -> None:
+    summary = Summary.model_validate(
+        {
+            "commit": "a" * 40,
+            "status": "failed" if blocked else "not_applicable",
+            "skills": [{"name": "paper", "status": "not_configured"}]
+            if blocked
+            else [],
+            "skipped_skills": [] if blocked else ["paper"],
+        }
+    )
+    update = Update(
+        pr=15,
+        commit="a" * 40,
+        state="failure" if blocked else "success",
+        run=1,
+        attempt=1,
+    )
+    body = render(update, summary)
+    if blocked:
+        assert "Gate: Failed" in body
+        assert "Enabled without an evaluation profile" in body
+        assert "Not evaluated (disabled" not in body
+    else:
+        assert "Gate: No affected skills with evaluation profiles" in body
+        assert "Not evaluated (disabled, no profile): `paper`" in body
+        assert "Gate: Passed" not in body
+
+
+def test_pr_comment_rejects_unvalidated_skipped_skill_names() -> None:
+    with pytest.raises(ValueError):
+        Summary.model_validate(
+            {
+                "commit": "a" * 40,
+                "status": "not_applicable",
+                "skills": [],
+                "skipped_skills": ["[click](https://example.test)"],
+            }
+        )

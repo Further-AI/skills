@@ -33,18 +33,19 @@ and executable flags. Unchanged inputs produce identical ZIPs.
 
 ## Where bundles go
 
-On pull requests and pushes to `main`, CI runs tests, checks types, and packages
-every directory under `skills/`. Open a completed run in
-[Actions](https://github.com/Further-AI/furtherai-skills/actions/workflows/validate.yml)
-and download `skill-bundles` under **Artifacts** to get one ZIP per skill and a
-`catalog.json` listing the complete repository snapshot.
+PR checks run tests and type checks. The backend packages and evaluates only
+changed skills with evaluation profiles, then updates the PR comment with scores
+and Braintrust links. Shared changes evaluate all profiled skills present in the
+candidate. Disabled skills without profiles are listed as skipped.
 
-Each PR commit evaluates changed skills and updates a comment with scores and
-Braintrust links. Shared changes evaluate all skills. Releases compare against
-the active staging catalog so changes from failed releases are checked again.
+Releases compare against the active staging catalog so changes from failed
+releases are checked again. After `validate` and `evaluate` pass, publication
+packages the complete repository, uploads every bundle, and activates the catalog
+atomically. Full packaging belongs to publication, not PR checks.
 
-After `validate` and `evaluate` pass, publishing uploads every bundle and activates
-the catalog in one atomic update. Failed uploads, stale commits, and conflicting
+Download `skill-bundles` from the publication job in
+[Actions](https://github.com/Further-AI/skills/actions/workflows/validate.yml)
+for the complete catalog and its ZIPs. Failed uploads, stale commits, and conflicting
 releases leave the active catalog unchanged. Removing a skill retires its saved
 pins; historical bundles remain stored.
 
@@ -79,15 +80,18 @@ A production release must publish to the production backend with
 ### Evaluation requirements
 
 Backend profiles define each skill's dataset, repetitions, and required scores.
-Missing profiles, incomplete required assessments, evaluation errors, and cleanup
-failures block publication. Availability does not bypass these checks.
+Profiles select CI coverage independently of `availability.yaml`. Enabling a skill
+in either environment requires a profile; disabled skills without profiles do not
+block publication. Incomplete required assessments, evaluation errors, and cleanup
+failures still block publication.
 
 | Current profile | Required | Advisory |
 | --- | --- | --- |
 | `excel-generation` | File validity | Completeness, functional correctness |
 
 The runner currently checks XLSX outputs. New formats need an inspector and a
-profile. Paper `xlsx` has no CI profile. The first release evaluates all skills.
+profile. Paper `xlsx` has no CI profile. The first release evaluates all profiled
+skills present in the candidate.
 
 To package the bundles and availability settings locally:
 
