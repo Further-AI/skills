@@ -1,5 +1,6 @@
 """Exercise CI packaging, publishing failures, and stale-commit protection."""
 
+import json
 import os
 import subprocess
 import sys
@@ -43,6 +44,9 @@ def workflow_environment(tmp_path: Path) -> dict[str, str]:
     executable.write_text('#!/bin/sh\nshift\nshift\nexec "$TEST_PYTHON" "$@"\n')
     executable.chmod(0o755)
     (tmp_path / "scripts").mkdir()
+    (tmp_path / "availability.yaml").write_text(
+        "staging: {enabled_skills: []}\nproduction: {enabled_skills: []}\n"
+    )
     return {
         **os.environ,
         "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
@@ -168,7 +172,13 @@ def test_workflow_packages_empty_repository_after_last_skill_is_deleted(
     assert sorted(path.name for path in (tmp_path / "dist").iterdir()) == [
         "catalog.json"
     ]
-    assert (tmp_path / "dist/catalog.json").read_text() == '{"skills":[]}'
+    assert json.loads((tmp_path / "dist/catalog.json").read_text()) == {
+        "skills": [],
+        "availability": {
+            "staging": {"enabled_skills": []},
+            "production": {"enabled_skills": []},
+        },
+    }
 
 
 @pytest.mark.parametrize("conclusion", ["success", "failure", "cancelled", "timed_out"])

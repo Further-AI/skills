@@ -84,4 +84,5 @@ jobs:
         run: |
           uv run python -m scripts.publish_skill dist \
             --api-url "$SKILLS_API_URL" \
-            --audience furtherai-skills-us-staging
+            --audience furtherai-skills-us-staging \
+            --environment staging

@@ -39,39 +39,57 @@ every directory under `skills/`. Open a completed run in
 and download `skill-bundles` under **Artifacts** to get one ZIP per skill and a
 `catalog.json` listing the complete repository snapshot.
 
-Each PR commit evaluates added or changed skills and updates one results table
-with experiment links, scores, and assessment counts. Shared changes evaluate all
-current skills. Releases compare the exact main commit against the active staging
-catalog, including changes from previous failed releases. Publishing waits for both `validate`
-and `evaluate` to succeed. When publishing is enabled, the current `main` commit then:
+Each PR commit evaluates changed skills and updates a comment with scores and
+Braintrust links. Shared changes evaluate all skills. Releases compare against
+the active staging catalog so changes from failed releases are checked again.
 
-1. Authenticates with GitHub OIDC and reads the current backend catalog revision.
-2. Uploads every validated ZIP to US staging as an immutable Azure bundle.
-3. Activates the complete name-to-digest mapping in one conditional catalog write.
+After `validate` and `evaluate` pass, publishing uploads every bundle and activates
+the catalog in one atomic update. Failed uploads, stale commits, and conflicting
+releases leave the active catalog unchanged. Removing a skill retires its saved
+pins; historical bundles remain stored.
 
-Additions, updates, and deletions take effect together. A missing artifact or failed
-upload leaves the previous catalog unchanged. The artifact manifest distinguishes
-an intentionally empty repository from an incomplete download; an empty manifest
-retires all FurtherAI skills. Releases run one at a time, and stale commits or
-conflicting catalog revisions fail without retrying activation.
+### Choose which skills are available
 
-Existing pins keep their exact versions while the skill remains active. Removing
-a skill blocks future retrieval and resolution of that name, including saved pins;
-already staged content is not recalled. Historical bundles remain stored.
-Agent defaults and common skill selection stay in the backend. Publishing does not
-change rollout flags or organization/member preferences. Repository validation checks packaging for every skill. Backend-owned evaluation
-profiles pin each skill's dataset, repetitions, and blocking or advisory scores.
-Scheduled trials must complete without evaluation or cleanup errors; blocking
-scores require full assessment. Missing profiles hold publication and appear as
-**Evaluation not configured**. Deleted skills need no execution trials.
+Edit [`availability.yaml`](availability.yaml) to enable skills independently:
 
-The initial profile covers `excel-generation`: file validity blocks publication;
-completeness and functional correctness are advisory. The runner currently
-inspects XLSX outputs only. Future formats need an inspector as well as a profile;
-adding profiles does not require changing these workflows. Paper `xlsx` remains
-outside CI coverage. The first publication evaluates the complete catalog.
+```yaml
+staging:
+  enabled_skills: []
+production:
+  enabled_skills: []
+```
 
-To package a complete local artifact, use a fresh output directory:
+Add a skill's directory name to the desired list once it exists in `skills/`.
+For example, add `excel-generation` to staging after PR #13 lands. Empty lists
+expose no FurtherAI skills. Unknown names and duplicate entries fail validation.
+
+The publisher saves the selected environment's list with the catalog. Disabled
+skills are hidden from the picker, blocked for saved selections and downloads,
+and removed from cached sandboxes before the next agent turn. Disabling does not
+delete bundles or interrupt a running turn.
+
+Logfire's `flag_enable_furtherai_skills` remains the global off switch.
+Organization permissions and personal opt-outs still apply. Custom skills are
+unaffected. Older catalogs retain their existing behavior until republished.
+
+The workflow publishes **staging only**, using `--environment staging`.
+A production release must publish to the production backend with
+`--environment production`; changing the production list alone does not deploy it.
+
+### Evaluation requirements
+
+Backend profiles define each skill's dataset, repetitions, and required scores.
+Missing profiles, incomplete required assessments, evaluation errors, and cleanup
+failures block publication. Availability does not bypass these checks.
+
+| Current profile | Required | Advisory |
+| --- | --- | --- |
+| `excel-generation` | File validity | Completeness, functional correctness |
+
+The runner currently checks XLSX outputs. New formats need an inspector and a
+profile. Paper `xlsx` has no CI profile. The first release evaluates all skills.
+
+To package the bundles and availability settings locally:
 
 ```sh
 uv run python -m scripts.skill_catalog skills --output dist/release
@@ -79,26 +97,21 @@ uv run python -m scripts.skill_catalog skills --output dist/release
 
 ## Configure the backend evaluation gate
 
-Deploy `.github/workflows/skills-evaluation.yml` and its evaluator to backend
-`main` before merging this workflow change. In this repository, configure:
+Deploy the evaluation workflows to both repositories' `main` branches, then set:
 
-- Variable `SKILLS_EVAL_APP_ID`: a GitHub App installed on
-  `Further-AI/fai-automation-backend` with Actions read/write permission.
-- Secret `SKILLS_EVAL_APP_PRIVATE_KEY`: that App's private key.
+| Repository | Setting | Value |
+| --- | --- | --- |
+| Skills | `SKILLS_EVAL_APP_ID` | App installed on the backend with Actions read/write |
+| Skills | `SKILLS_EVAL_APP_PRIVATE_KEY` (secret) | That App's private key |
+| Backend | `SKILLS_EVAL_JUDGE_TEMPLATE` | Staging judge image |
+| Backend | `SKILLS_EVAL_BRAINTRUST_API_KEY` (secret) | Access to evaluation datasets and project |
 
-In the backend, set `SKILLS_EVAL_JUDGE_TEMPLATE` to a staging judge image and
-`SKILLS_EVAL_BRAINTRUST_API_KEY` to a credential with access to the pinned
-datasets and evaluation project. The existing staging evaluation services must
-be available.
-Missing configuration, failed evaluation, or a timeout blocks publishing.
-The PR comment includes aggregate scores and the Braintrust experiment link;
-source documents, workbooks, and detailed reports stay in the private backend.
+The backend needs its staging evaluation services. Missing configuration,
+failures, and timeouts block publishing.
 
-PR evaluation runs on opening and each new commit. Its trigger and comment code
-come from trusted main, never the candidate branch; these workflows must land on
-main before they become active. Automatic PR runs cover branches in this repository;
-forks need a maintainer-controlled evaluation. Existing required checks remain
-unchanged. Failed post-merge evaluation leaves the active catalog unchanged.
+PR evaluation uses trusted `main` workflow code and runs for branches in this
+repository; forks require a maintainer-run evaluation. PR comments show scores
+and experiment links. Documents, workbooks, and full reports stay private.
 
 ## Enable staging publishing
 

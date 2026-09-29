@@ -17,6 +17,7 @@ from pydantic import (
     SecretStr,
     TypeAdapter,
     ValidationError,
+    field_validator,
 )
 
 from scripts.skill_catalog import SkillCatalog, SkillName
@@ -29,12 +30,18 @@ class CIContext(BaseModel):
 
     model_config = ConfigDict(strict=True)
 
-    repository: Literal["Further-AI/furtherai-skills"] = Field(alias="GITHUB_REPOSITORY")
+    repository: Literal["Further-AI/furtherai-skills", "Further-AI/skills"] = Field(alias="GITHUB_REPOSITORY")
     commit_sha: str = Field(alias="GITHUB_SHA", pattern=r"^[0-9a-f]{40}$")
     ref: Literal["refs/heads/main"] = Field(alias="GITHUB_REF")
     event: Literal["push", "workflow_dispatch"] = Field(alias="GITHUB_EVENT_NAME")
     token_url: str = Field(alias="ACTIONS_ID_TOKEN_REQUEST_URL", min_length=1)
     request_token: SecretStr = Field(alias="ACTIONS_ID_TOKEN_REQUEST_TOKEN", min_length=1)
+
+    @field_validator("repository")
+    @classmethod
+    def storage_repository(cls, repository: str) -> Literal["Further-AI/furtherai-skills"]:
+        """Keep existing bundle provenance stable across the GitHub repository rename."""
+        return "Further-AI/furtherai-skills"
 
 
 class IdentityToken(BaseModel):
@@ -57,12 +64,14 @@ class CatalogRelease(BaseModel):
     revision: UUID
     commit_sha: str = Field(pattern=r"^[0-9a-f]{40}$")
     skills: dict[SkillName, Digest]
+    enabled_skills: list[SkillName] | None = None
 
 
 class CatalogActivationRequest(BaseModel):
     """Activate every bundle together at the revision observed before uploading."""
 
     skills: dict[SkillName, Digest]
+    enabled_skills: list[SkillName]
     expected_revision: UUID | None
 
 
@@ -139,12 +148,29 @@ def _identity_token(context: CIContext, audience: str) -> str:
     return IdentityToken.model_validate_json(token_response).value.get_secret_value()
 
 
-def publish_catalog(directory: Path, *, api_url: str, audience: str, context: CIContext) -> CatalogRelease:
+def publish_catalog(
+    directory: Path,
+    *,
+    api_url: str,
+    audience: str,
+    context: CIContext,
+    environment: Literal["staging", "production"],
+) -> CatalogRelease:
     """Upload a complete artifact and activate it once; conflicts stop the release.
 
     A manifest distinguishes an empty repository from a missing download. Failed
     uploads leave the current catalog intact. Never retry with a newer revision:
     doing so could overwrite a competing publisher's release.
+
+    Args:
+        directory: Complete packaged catalog artifact.
+        api_url: Target environment's backend URL.
+        audience: OIDC audience configured for that backend.
+        context: Verified GitHub job configuration.
+        environment: Availability list to activate on the target backend.
+
+    Returns:
+        The release confirmed by the backend, including the requested allowlist.
     """
     _check_url(api_url)
     _check_url(context.token_url)
@@ -154,6 +180,9 @@ def publish_catalog(directory: Path, *, api_url: str, audience: str, context: CI
     expected_files = {"catalog.json", *(f"{name}.zip" for name in catalog.skills)}
     if {path.name for path in directory.iterdir()} != expected_files:
         raise PublishingError("Artifact files do not match the complete catalog manifest.")
+    enabled_skills = (
+        catalog.availability.staging if environment == "staging" else catalog.availability.production
+    ).enabled_skills
     token = _identity_token(context, audience)
     headers = {"Authorization": f"Bearer {token}"}
     base_url = f"{api_url.rstrip('/')}/api/v1/internal/skills"
@@ -176,7 +205,11 @@ def publish_catalog(directory: Path, *, api_url: str, audience: str, context: CI
         if published.name != name:
             raise PublishingError("Publishing returned a different skill name.")
         skills[name] = published.content_digest
-    activation = CatalogActivationRequest(skills=skills, expected_revision=current.revision if current else None)
+    activation = CatalogActivationRequest(
+        skills=skills,
+        enabled_skills=enabled_skills,
+        expected_revision=current.revision if current else None,
+    )
     response = _request(
         Request(
             f"{base_url}/catalog",
@@ -187,7 +220,7 @@ def publish_catalog(directory: Path, *, api_url: str, audience: str, context: CI
         "Catalog activation",
     )
     release = CatalogRelease.model_validate_json(response)
-    if release.skills != skills or release.commit_sha != context.commit_sha:
+    if release.skills != skills or release.commit_sha != context.commit_sha or release.enabled_skills != enabled_skills:
         raise PublishingError("Activation returned a different repository snapshot.")
     return release
 
@@ -198,6 +231,7 @@ def main() -> None:
     parser.add_argument("directory", type=Path)
     parser.add_argument("--api-url", required=True)
     parser.add_argument("--audience", required=True)
+    parser.add_argument("--environment", choices=["staging", "production"], required=True)
     args = parser.parse_args()
     try:
         context = CIContext.model_validate(dict(os.environ))
@@ -206,6 +240,7 @@ def main() -> None:
             api_url=args.api_url,
             audience=args.audience,
             context=context,
+            environment=args.environment,
         )
     except ValidationError:
         parser.exit(1, "Invalid CI configuration or publishing API response.\n")
