@@ -21,12 +21,13 @@ jobs:
     outputs:
       run_id: ${{ steps.dispatch.outputs.run_id }}
     runs-on: ubuntu-latest
-    timeout-minutes: 55
+    # Three 45-minute windows cover the backend budget plus queue time.
+    timeout-minutes: 150
     steps:
       - name: Mint backend workflow token
         id: backend-token
         uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349 # v2
-        with:
+        with: &backend-app
           app-id: ${{ vars.SKILLS_EVAL_APP_ID }}
           private-key: ${{ secrets.evaluation_app_key }}
           owner: Further-AI
@@ -48,14 +49,57 @@ jobs:
           echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
           echo "[Backend evaluation](https://github.com/Further-AI/fai-automation-backend/actions/runs/$run_id)" >> "$GITHUB_STEP_SUMMARY"
       - name: Wait for evaluation to pass
+        id: wait-first
         env:
           GH_TOKEN: ${{ steps.backend-token.outputs.token }}
           RUN_ID: ${{ steps.dispatch.outputs.run_id }}
-        run: gh run watch "$RUN_ID" --repo Further-AI/fai-automation-backend --interval 20 --exit-status
+        run: &wait-for-backend |
+          status=0
+          timeout --kill-after=30s 45m gh run watch "$RUN_ID" \
+            --repo Further-AI/fai-automation-backend --interval 20 --exit-status || status=$?
+          if [[ "$status" == 124 ]]; then
+            echo "pending=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "pending=false" >> "$GITHUB_OUTPUT"
+            exit "$status"
+          fi
+      - name: Renew token for second window
+        if: steps.wait-first.outputs.pending == 'true'
+        id: second-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with: *backend-app
+      - name: Wait for evaluation (second window)
+        if: steps.wait-first.outputs.pending == 'true'
+        id: wait-second
+        env:
+          GH_TOKEN: ${{ steps.second-token.outputs.token }}
+          RUN_ID: ${{ steps.dispatch.outputs.run_id }}
+        run: *wait-for-backend
+      - name: Renew token for third window
+        if: steps.wait-second.outputs.pending == 'true'
+        id: third-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with: *backend-app
+      - name: Wait for evaluation (third window)
+        if: steps.wait-second.outputs.pending == 'true'
+        id: wait-third
+        env:
+          GH_TOKEN: ${{ steps.third-token.outputs.token }}
+          RUN_ID: ${{ steps.dispatch.outputs.run_id }}
+        run: *wait-for-backend
+      - name: Reject an unfinished evaluation
+        if: steps.wait-third.outputs.pending == 'true'
+        run: |
+          echo "::error::Backend evaluation did not finish within 135 minutes."
+          exit 1
+      - name: Mint a fresh token for cancellation
+        if: ${{ (failure() || cancelled()) && steps.dispatch.outputs.run_id != '' }}
+        id: cancel-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with: *backend-app
       - name: Cancel unfinished evaluation when this gate fails
         if: ${{ (failure() || cancelled()) && steps.dispatch.outputs.run_id != '' }}
         env:
-          GH_TOKEN: ${{ steps.backend-token.outputs.token }}
+          GH_TOKEN: ${{ steps.cancel-token.outputs.token }}
           RUN_ID: ${{ steps.dispatch.outputs.run_id }}
         run: gh run cancel "$RUN_ID" --repo Further-AI/fai-automation-backend
-

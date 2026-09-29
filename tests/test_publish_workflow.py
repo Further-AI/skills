@@ -188,6 +188,9 @@ def test_evaluation_wait_propagates_backend_result(
     tmp_path: Path, conclusion: str
 ) -> None:
     """Exercise the actual wait step; unsuccessful backend runs must block release."""
+    timeout = tmp_path / "timeout"
+    timeout.write_text('#!/bin/sh\nshift\nshift\nexec "$@"\n')
+    timeout.chmod(0o755)
     gh = tmp_path / "gh"
     gh.write_text(
         "#!/bin/sh\n"
@@ -204,6 +207,7 @@ def test_evaluation_wait_propagates_backend_result(
             **os.environ,
             "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
             "RUN_ID": "123",
+            "GITHUB_OUTPUT": str(tmp_path / "output"),
             "TEST_CONCLUSION": conclusion,
         },
     )
