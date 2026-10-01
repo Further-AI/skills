@@ -1,5 +1,7 @@
 ---
 name: docx
+metadata:
+  furtherai-display-name: Documents
 description: Work with Microsoft Word `.docx` files using the installed `paper-docx` distribution, which imports as `docx` and extends `python-docx` with inspection, guarded edits, review structures, composition, diffs, and byte-preserving saves.
 ---
 

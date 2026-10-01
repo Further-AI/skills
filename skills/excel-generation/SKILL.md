@@ -1,5 +1,7 @@
 ---
 name: excel-generation
+metadata:
+  furtherai-display-name: Spreadsheet
 compatibility: Python 3.12+ and openpyxl 3.1.5+. LibreOffice is optional for formula recalculation.
 description: Build Excel workbooks (.xlsx) for insurance brokers, account managers, and underwriters from policies, ACORD forms, schedules, loss runs, quotes, SOVs, and client spreadsheets. Covers reconciliations (policy schedule vs. the insured's list), schedule extractions (vehicles, equipment, locations, drivers), loss run summaries, quote and coverage comparisons, and filtered follow-up lists, with correctly typed values, a formula-driven summary that accounts for every record, and one consistent house style. Use this skill whenever the user wants results as a spreadsheet, Excel file, xlsx, download, export, or "a format I can paste into Excel", including short follow-ups like "put that in excel" or "now just the trailers", and whenever two lists or documents are compared and the answer is a table, even if Excel isn't mentioned until later.
 ---
