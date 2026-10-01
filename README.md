@@ -23,6 +23,20 @@ each skill directory carries its LICENSE) and assume the matching `paper-*`
 distributions are installed in the agent's environment. They document
 `paper-docx==0.2.0` and `paper-pptx==0.2.0`.
 
+## Product names
+
+Keep `name` equal to the skill folder and use optional metadata for its UI label:
+
+```yaml
+name: pptx
+metadata:
+  furtherai-display-name: PowerPoint
+```
+
+The label changes how the skill appears in FurtherAI. Identifiers, permissions,
+and saved selections still use `name`. Skills without a label keep their current
+sentence-case name. Publishing preserves this metadata inside the skill bundle.
+
 ## Getting started
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run
