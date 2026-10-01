@@ -1,5 +1,6 @@
 """Exercise CI packaging, publishing failures, and stale-commit protection."""
 
+import json
 import os
 import subprocess
 import sys
@@ -17,8 +18,14 @@ def run_workflow_step(
     env: dict[str, str],
 ) -> subprocess.CompletedProcess[str]:
     """Run the workflow's actual step with GitHub Actions' fail-fast shell behavior."""
-    workflow = yaml.safe_load((Path(__file__).parents[1] / ".github/workflows/validate.yml").read_text())
-    command = next(step["run"] for step in workflow["jobs"][job]["steps"] if step.get("name") == name)
+    workflow = yaml.safe_load(
+        (Path(__file__).parents[1] / ".github/workflows" / "validate.yml").read_text()
+    )
+    command = next(
+        step["run"]
+        for step in workflow["jobs"][job]["steps"]
+        if step.get("name") == name
+    )
     return subprocess.run(
         ["bash", "-e", "-c", command],
         cwd=cwd,
@@ -60,9 +67,15 @@ def test_workflow_packages_all_skills_and_rejects_invalid_content(
         if invalid and name == "second-skill":
             content = "Missing metadata"
         (directory / "SKILL.md").write_text(content)
-    result = run_workflow_step("validate", "Package skills", tmp_path, workflow_environment)
+    result = run_workflow_step(
+        "publish", "Package skills", tmp_path, workflow_environment
+    )
     assert result.returncode == (1 if invalid else 0), result.stderr
-    expected = ["first-skill.zip"] if invalid else ["catalog.json", *(f"{name}.zip" for name in names)]
+    expected = (
+        ["first-skill.zip"]
+        if invalid
+        else ["catalog.json", *(f"{name}.zip" for name in names)]
+    )
     assert sorted(path.name for path in (tmp_path / "dist").iterdir()) == expected
 
 
@@ -95,6 +108,7 @@ def test_workflow_publishes_catalog_once_and_propagates_failure(
             **workflow_environment,
             "FAIL_SECOND": str(fail_second).lower(),
             "SKILLS_API_URL": "https://example.test",
+            "SKILLS_PUBLISH_AUDIENCE": "furtherai-skills-us-staging",
         },
     )
     assert result.returncode == (1 if fail_second else 0), result.stderr
@@ -108,7 +122,9 @@ def test_publish_workflow_rejects_stale_main(tmp_path: Path, stale: bool) -> Non
     checkout = tmp_path / "checkout"
 
     def git(*args: str, cwd: Path = tmp_path) -> str:
-        return subprocess.check_output(["git", *args], cwd=cwd, stderr=subprocess.STDOUT, text=True).strip()
+        return subprocess.check_output(
+            ["git", *args], cwd=cwd, stderr=subprocess.STDOUT, text=True
+        ).strip()
 
     git("init", "--bare", str(remote))
     git("clone", str(remote), str(checkout))
@@ -146,7 +162,38 @@ def test_workflow_packages_empty_repository_after_last_skill_is_deleted(
     for filename in ["skill_bundle.py", "skill_catalog.py"]:
         source = Path(__file__).parents[1] / "scripts" / filename
         (tmp_path / "scripts" / filename).write_bytes(source.read_bytes())
-    result = run_workflow_step("validate", "Package skills", tmp_path, workflow_environment)
+    result = run_workflow_step(
+        "publish", "Package skills", tmp_path, workflow_environment
+    )
     assert result.returncode == 0, result.stderr
-    assert sorted(path.name for path in (tmp_path / "dist").iterdir()) == ["catalog.json"]
-    assert (tmp_path / "dist/catalog.json").read_text() == '{"skills":[]}'
+    assert sorted(path.name for path in (tmp_path / "dist").iterdir()) == [
+        "catalog.json"
+    ]
+    assert json.loads((tmp_path / "dist/catalog.json").read_text()) == {
+        "skills": [],
+    }
+
+
+def test_publishing_is_independent_of_evaluation_in_both_environments() -> None:
+    """Publish both environments without judge dependencies or shared cancellation."""
+    workflow = yaml.safe_load(
+        (Path(__file__).parents[1] / ".github/workflows/validate.yml").read_text()
+    )
+    jobs = workflow["jobs"]
+    assert jobs["publish"]["needs"] == "validate"
+    assert "evaluate" not in jobs
+    assert "always()" not in jobs["publish"]["if"]
+    publish = jobs["publish"]
+    assert publish["strategy"]["fail-fast"] is False
+    assert publish["strategy"]["matrix"]["include"] == [
+        {"environment": "us-staging", "audience": "furtherai-skills-us-staging"},
+        {"environment": "us-production", "audience": "furtherai-skills-us-production"},
+    ]
+    assert publish["environment"] == "${{ matrix.environment }}"
+    assert "matrix.environment" in publish["concurrency"]["group"]
+    assert all(
+        step.get("name") != "Package skills" for step in jobs["validate"]["steps"]
+    )
+    assert any(
+        step.get("name") == "Package skills" for step in jobs["publish"]["steps"]
+    )
