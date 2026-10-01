@@ -31,7 +31,7 @@ Typical usage example:
 
 import math
 import re
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Callable, Hashable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Final
@@ -363,7 +363,7 @@ def reconcile(
             bucket = review if conflict else matched
             bucket.append((i, j, secondary_label, detail))
 
-    # Tier 3: near-miss primary keys, closest first, one-to-one.
+    # Tier 3: keep as many one-to-one review candidates as possible.
     near: list[tuple[int, int, int]] = []
     for i in open_left:
         if len(left_keys[i]) < min_key_length:
@@ -374,13 +374,12 @@ def reconcile(
             distance = key_distance(left_keys[i], right_keys[j], max_key_distance)
             if 0 < distance <= max_key_distance:
                 near.append((distance, i, j))
-    for _, i, j in sorted(near):
-        if i in open_left and j in open_right:
-            _take(open_left, open_right, i, j)
-            detail = describe_key_difference(
-                left_keys[i], right_keys[j], vin=vin_keys, names=source_names
-            )
-            review.append((i, j, f"Near {primary_label}", detail))
+    for i, j in _assign_review_pairs(near):
+        _take(open_left, open_right, i, j)
+        detail = describe_key_difference(
+            left_keys[i], right_keys[j], vin=vin_keys, names=source_names
+        )
+        review.append((i, j, f"Near {primary_label}", detail))
 
     # Tier 4: shared secondary key that wasn't unique enough to auto-match.
     for combo, left_members in left_groups.items():
@@ -412,6 +411,45 @@ def reconcile(
         left_duplicates=_duplicates(left, left_keys),
         right_duplicates=_duplicates(right, right_keys),
     )
+
+
+def _assign_review_pairs(
+    candidates: Sequence[tuple[int, int, int]],
+) -> list[tuple[int, int]]:
+    """Finds a maximum-cardinality assignment of near-key review candidates.
+
+    Visit closer candidates first, but allow reassignment along an augmenting
+    path so one early choice cannot discard another valid review pair. This
+    chooses pairs for human review, not confirmed matches or a minimum-cost
+    assignment.
+    """
+    neighbors: dict[int, list[int]] = defaultdict(list)
+    for _, left, right in sorted(candidates):
+        neighbors[left].append(right)
+    left_matches: dict[int, int] = {}
+    right_matches: dict[int, int] = {}
+    for start in neighbors:
+        pending = deque([start])
+        parents: dict[int, int] = {}
+        endpoint: int | None = None
+        while pending and endpoint is None:
+            left = pending.popleft()
+            for right in neighbors[left]:
+                if right in parents:
+                    continue
+                parents[right] = left
+                if right not in right_matches:
+                    endpoint = right
+                    break
+                pending.append(right_matches[right])
+        # Reverse the alternating path to free a partner for this left record.
+        while endpoint is not None:
+            left = parents[endpoint]
+            previous = left_matches.get(left)
+            left_matches[left] = endpoint
+            right_matches[endpoint] = left
+            endpoint = previous
+    return sorted(left_matches.items())
 
 
 def _take(

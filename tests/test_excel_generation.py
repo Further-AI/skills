@@ -20,6 +20,7 @@ from xlsx_kit import (
     MatrixRow,
     Section,
     SummaryLine,
+    add_dropdown,
     add_matrix_sheet,
     add_table_sheet,
     balance_check,
@@ -331,3 +332,47 @@ def test_workbook_keeps_source_text_literal_and_authored_formulas_active(
 def test_formula_rejects_missing_expression(expression: str) -> None:
     with pytest.raises(ValueError, match="must start"):
         Formula(expression)
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_reconcile_overlapping_near_keys_keeps_both_review_pairs(reverse: bool) -> None:
+    left = [{"key": key} for key in ["AAAAAA", "BAAAAA"]]
+    right = [{"key": key} for key in ["CAAAAA", "AAAABB"]]
+    if reverse:
+        left.reverse()
+        right.reverse()
+    result = reconcile(left, right, primary=lambda row: row["key"])
+    assert {(pair.left["key"], pair.right["key"]) for pair in result.review} == {
+        ("AAAAAA", "AAAABB"),
+        ("BAAAAA", "CAAAAA"),
+    }
+    assert not result.matched
+    assert not result.left_only
+    assert not result.right_only
+    assert result.accounted_for(2, 2)
+
+
+@pytest.mark.parametrize(
+    "options",
+    [[], [""], ["Review, then call"], ['Review "now"'], ["A\nB"], ["x" * 256]],
+)
+def test_dropdown_rejects_choices_that_excel_cannot_preserve(
+    options: list[str],
+) -> None:
+    sheet = add_table_sheet(new_workbook(), "Data", [Column("Status")], [["Open"]])
+    with pytest.raises(ValueError, match="Dropdown choices"):
+        add_dropdown(sheet, "Status", options)
+    assert not sheet.data_validations.dataValidation
+
+
+def test_dropdown_round_trip_preserves_supported_choices(tmp_path: Path) -> None:
+    workbook = new_workbook()
+    sheet = add_table_sheet(workbook, "Data", [Column("Status")], [["Open"]])
+    add_dropdown(sheet, "Status", ["Review", "Resolved"])
+    path = tmp_path / "dropdown.xlsx"
+    workbook.save(path)
+    saved = load_workbook(path)
+    validation = saved["Data"].data_validations.dataValidation[0]
+    assert validation.formula1 == '"Review,Resolved"'
+    assert "A2" in validation.sqref
+    saved.close()

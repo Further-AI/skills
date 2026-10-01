@@ -520,11 +520,25 @@ def add_dropdown(ws: Worksheet, header: str, options: Sequence[str]) -> None:
     Args:
         ws: A sheet written by `add_table_sheet`.
         header: Header of the column to restrict.
-        options: Allowed values. Their combined length must stay under 255
-            characters, an Excel limit for inline lists.
+        options: Nonempty values without commas, quotes, or line breaks.
+            The joined list must fit Excel's 255-character inline-list limit.
+
+    Raises:
+        ValueError: If choices cannot be represented by an inline Excel list.
     """
+    if not options or any(
+        not option or any(char in option for char in ',"\r\n') for option in options
+    ):
+        raise ValueError(
+            "Dropdown choices must be nonempty and contain no commas, quotes, or line breaks"
+        )
+    joined = ",".join(options)
+    if len(joined.encode("utf-16-le")) // 2 > 255:
+        raise ValueError(
+            "Dropdown choices exceed Excel's 255-character inline-list limit"
+        )
     letter = column_letter(ws, header)
-    formula = '"' + ",".join(option.replace('"', "") for option in options) + '"'
+    formula = '"' + joined + '"'
     validation = DataValidation(type="list", formula1=formula, allow_blank=True)
     cells = f"{letter}2:{letter}{ws.max_row + _DROPDOWN_EXTRA_ROWS}"
     validation.add(cells)  # pyright: ignore[reportUnknownMemberType]
