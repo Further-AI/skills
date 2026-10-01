@@ -29,7 +29,7 @@ class SkillMetadata(BaseModel):
 
 
 def _iter_skill_files(skill_dir: Path) -> Iterator[Path]:
-    """Yield regular files without following symlinks or entering root tests/."""
+    """Yield regular files, excluding root tests/ and Python cache directories."""
     if skill_dir.is_symlink() or not skill_dir.is_dir():
         raise ValueError(f"Expected a real skill directory: {skill_dir}")
 
@@ -40,7 +40,7 @@ def _iter_skill_files(skill_dir: Path) -> Iterator[Path]:
             if entry.is_symlink():
                 raise ValueError(f"Symlinks are not supported: {entry}")
             if entry.is_dir():
-                if relative_path != "tests":
+                if relative_path != "tests" and entry.name != "__pycache__":
                     directories.append(entry)
                 continue
             if not entry.is_file():
@@ -83,7 +83,7 @@ def read_skill(skill_dir: Path) -> dict[str, bytes]:
         skill_dir: Skill folder whose name matches the frontmatter name.
 
     Returns:
-        Relative paths mapped to original file bytes, excluding root tests/.
+        Relative paths mapped to original bytes, excluding tests and Python caches.
     """
     contents: dict[str, bytes] = {}
     total_bytes = 0

@@ -21,7 +21,7 @@ jobs:
           python-version: "3.12"
       - run: uv sync --locked
       - run: uv run pytest -x --tb=short
-      - run: uv run ty check scripts tests
+      - run: uv run ty check scripts tests skills/excel-generation/scripts
 
   publish:
     needs: validate
@@ -39,7 +39,7 @@ jobs:
           - environment: us-staging
             audience: furtherai-skills-us-staging
           - environment: us-production
-            audience: furtherai-skills-us-production
+            audience: furtherai-skills-production
     environment: ${{ matrix.environment }}
     permissions:
       contents: read

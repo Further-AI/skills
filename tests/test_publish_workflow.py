@@ -187,7 +187,7 @@ def test_publishing_is_independent_of_evaluation_in_both_environments() -> None:
     assert publish["strategy"]["fail-fast"] is False
     assert publish["strategy"]["matrix"]["include"] == [
         {"environment": "us-staging", "audience": "furtherai-skills-us-staging"},
-        {"environment": "us-production", "audience": "furtherai-skills-us-production"},
+        {"environment": "us-production", "audience": "furtherai-skills-production"},
     ]
     assert publish["environment"] == "${{ matrix.environment }}"
     assert "matrix.environment" in publish["concurrency"]["group"]
