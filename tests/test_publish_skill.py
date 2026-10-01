@@ -95,7 +95,7 @@ def request_mock() -> Iterator[Mock]:
     "api_url,audience",
     [
         ("https://staging.example", "furtherai-skills-us-staging"),
-        ("https://production.example", "furtherai-skills-us-production"),
+        ("https://production.example", "furtherai-skills-production"),
     ],
 )
 def test_publish_catalog_uploads_every_artifact_before_one_activation(

@@ -39,7 +39,7 @@ jobs:
           - environment: us-staging
             audience: furtherai-skills-us-staging
           - environment: us-production
-            audience: furtherai-skills-us-production
+            audience: furtherai-skills-production
     environment: ${{ matrix.environment }}
     permissions:
       contents: read

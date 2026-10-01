@@ -71,7 +71,7 @@ in each to its backend's HTTPS base URL without `/api/v1`:
 | GitHub environment | Destination | Backend `SKILLS_PUBLISH_AUDIENCE` |
 | --- | --- | --- |
 | `us-staging` | US staging backend | `furtherai-skills-us-staging` |
-| `us-production` | US production backend | `furtherai-skills-us-production` |
+| `us-production` | US production backend | `furtherai-skills-production` |
 
 Set the repository variable `SKILLS_PUBLISH_ENABLED` to `true`. The publisher uses
 GitHub OIDC; no GitHub App, Braintrust key, Azure credential, or long-lived
