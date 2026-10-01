@@ -60,6 +60,7 @@ def release(skills: dict[str, str]) -> bytes:
             "revision": "11111111-1111-4111-8111-111111111111",
             "commit_sha": "c" * 40,
             "skills": skills,
+            "enabled_skills": list(skills),
         }
     ).encode()
 
@@ -90,12 +91,26 @@ def request_mock() -> Iterator[Mock]:
         yield mocked
 
 
+@pytest.mark.parametrize(
+    "api_url,audience",
+    [
+        ("https://staging.example", "furtherai-skills-us-staging"),
+        ("https://production.example", "furtherai-skills-us-production"),
+    ],
+)
 def test_publish_catalog_uploads_every_artifact_before_one_activation(
     context: publish_skill.CIContext,
     artifact: Path,
     request_mock: Mock,
+    api_url: str,
+    audience: str,
 ) -> None:
-    result = publish_skill.publish_catalog(artifact, api_url=API_URL, audience=AUDIENCE, context=context)
+    result = publish_skill.publish_catalog(
+        artifact,
+        api_url=api_url,
+        audience=audience,
+        context=context,
+    )
     assert result.skills == {
         "document-extraction": DIGEST,
         "policy-comparison": PREVIOUS,
@@ -103,14 +118,14 @@ def test_publish_catalog_uploads_every_artifact_before_one_activation(
     token, current, first, second, activation = [call.args[0] for call in request_mock.call_args_list]
     assert parse_qs(urlsplit(token.full_url).query) == {
         "request": ["1"],
-        "audience": [AUDIENCE],
+        "audience": [audience],
     }
     assert token.get_header("Authorization") == "Bearer request-token"
-    assert current.full_url == f"{API_URL}/api/v1/internal/skills/catalog"
+    assert current.full_url == f"{api_url}/api/v1/internal/skills/catalog"
     assert current.get_method() == "GET"
     for upload, name in [(first, "document-extraction"), (second, "policy-comparison")]:
         assert upload.method == "POST"
-        assert upload.full_url == f"{API_URL}/api/v1/internal/skills/{name}/versions"
+        assert upload.full_url == f"{api_url}/api/v1/internal/skills/{name}/versions"
         assert upload.get_header("Authorization") == "Bearer identity-token"
         message = BytesParser(policy=policy.default).parsebytes(
             f"Content-Type: {upload.get_header('Content-type')}\r\n\r\n".encode() + upload.data
@@ -129,6 +144,7 @@ def test_publish_catalog_uploads_every_artifact_before_one_activation(
     assert json.loads(activation.data) == {
         "skills": result.skills,
         "expected_revision": None,
+        "enabled_skills": list(result.skills),
     }
 
 
@@ -145,7 +161,12 @@ def test_publish_catalog_stops_on_failure_without_retrying(
         publish_skill.PublishingError("HTTP 409"),
     ]
     with pytest.raises(publish_skill.PublishingError, match="HTTP 409"):
-        publish_skill.publish_catalog(artifact, api_url=API_URL, audience=AUDIENCE, context=context)
+        publish_skill.publish_catalog(
+            artifact,
+            api_url=API_URL,
+            audience=AUDIENCE,
+            context=context,
+        )
     assert request_mock.call_count == failure_step + 1
 
 
@@ -158,7 +179,12 @@ def test_invalid_upload_response_blocks_activation(
 ) -> None:
     request_mock.side_effect = [b'{"value":"identity-token"}', b"null", invalid]
     with pytest.raises((ValidationError, publish_skill.PublishingError)):
-        publish_skill.publish_catalog(artifact, api_url=API_URL, audience=AUDIENCE, context=context)
+        publish_skill.publish_catalog(
+            artifact,
+            api_url=API_URL,
+            audience=AUDIENCE,
+            context=context,
+        )
     assert request_mock.call_count == 3
 
 
@@ -176,10 +202,19 @@ def test_empty_catalog_retires_all_at_observed_revision(
         release({"old": DIGEST}),
         release({}),
     ]
-    assert publish_skill.publish_catalog(artifact, api_url=API_URL, audience=AUDIENCE, context=context).skills == {}
+    assert (
+        publish_skill.publish_catalog(
+            artifact,
+            api_url=API_URL,
+            audience=AUDIENCE,
+            context=context,
+        ).skills
+        == {}
+    )
     activation = request_mock.call_args.args[0]
     assert json.loads(activation.data) == {
         "skills": {},
+        "enabled_skills": [],
         "expected_revision": "11111111-1111-4111-8111-111111111111",
     }
     assert request_mock.call_count == 3
@@ -205,7 +240,12 @@ def test_incomplete_artifact_is_rejected_before_network(
         names = ["../bad"] if problem == "invalid_name" else ["same", "same"]
         (artifact / "catalog.json").write_text(json.dumps({"skills": names}))
     with pytest.raises((OSError, ValidationError, publish_skill.PublishingError)):
-        publish_skill.publish_catalog(artifact, api_url=API_URL, audience=AUDIENCE, context=context)
+        publish_skill.publish_catalog(
+            artifact,
+            api_url=API_URL,
+            audience=AUDIENCE,
+            context=context,
+        )
     request_mock.assert_not_called()
 
 
@@ -217,7 +257,12 @@ def test_mismatched_activation_is_not_reported_as_success(
     responses = list(request_mock.side_effect)
     request_mock.side_effect = [*responses[:-1], release({})]
     with pytest.raises(publish_skill.PublishingError, match="different repository snapshot"):
-        publish_skill.publish_catalog(artifact, api_url=API_URL, audience=AUDIENCE, context=context)
+        publish_skill.publish_catalog(
+            artifact,
+            api_url=API_URL,
+            audience=AUDIENCE,
+            context=context,
+        )
 
 
 @pytest.mark.parametrize(
@@ -237,7 +282,12 @@ def test_invalid_api_url_never_sends_credentials(
     url: str,
 ) -> None:
     with pytest.raises(publish_skill.PublishingError):
-        publish_skill.publish_catalog(artifact, api_url=url, audience=AUDIENCE, context=context)
+        publish_skill.publish_catalog(
+            artifact,
+            api_url=url,
+            audience=AUDIENCE,
+            context=context,
+        )
     request_mock.assert_not_called()
 
 
@@ -270,7 +320,12 @@ def test_invalid_oidc_url_never_sends_credentials(
 ) -> None:
     context.token_url = token_url
     with pytest.raises(publish_skill.PublishingError):
-        publish_skill.publish_catalog(artifact, api_url=API_URL, audience=AUDIENCE, context=context)
+        publish_skill.publish_catalog(
+            artifact,
+            api_url=API_URL,
+            audience=AUDIENCE,
+            context=context,
+        )
     request_mock.assert_not_called()
 
 
@@ -368,3 +423,29 @@ def test_request_network_failure_hides_connection_details(failure: Exception) ->
         with pytest.raises(publish_skill.PublishingError, match="could not reach") as error:
             publish_skill._request(Request(API_URL), "Publishing")
     assert "secret-host" not in str(error.value)
+
+
+@pytest.mark.parametrize("enabled", [None, [], ["document-extraction"]])
+def test_publish_rejects_backend_ignoring_availability(
+    context: publish_skill.CIContext, artifact: Path, request_mock: Mock, enabled: list[str] | None
+) -> None:
+    responses = list(request_mock.side_effect)
+    response = json.loads(responses[-1])
+    response["enabled_skills"] = enabled
+    request_mock.side_effect = [*responses[:-1], json.dumps(response).encode()]
+    with pytest.raises(publish_skill.PublishingError, match="different repository snapshot"):
+        publish_skill.publish_catalog(
+            artifact,
+            api_url=API_URL,
+            audience=AUDIENCE,
+            context=context,
+        )
+
+
+@pytest.mark.parametrize("repository", ["Further-AI/skills", "Further-AI/furtherai-skills"])
+def test_context_keeps_storage_identity_across_repository_rename(
+    context: publish_skill.CIContext, repository: str
+) -> None:
+    values = context.model_dump(by_alias=True)
+    values["GITHUB_REPOSITORY"] = repository
+    assert publish_skill.CIContext.model_validate(values).repository == "Further-AI/furtherai-skills"
