@@ -13,15 +13,14 @@ uses to perform a task.
 | [Loss-run analysis](skills/loss-run-analysis/SKILL.md) | Summarize claims history, losses, and trends. |
 | [Submission intake](skills/submission-intake/SKILL.md) | Summarize submission documents, missing information, and risk flags. |
 | [Coverage advisory](skills/coverage-advisory/SKILL.md) | Explain coverage, policy terms, and insurance requirements. |
-| [xlsx](skills/xlsx/SKILL.md) | Edit and inspect `.xlsx`/`.xlsm` workbooks with the `paper-xlsx` distribution. |
 | [docx](skills/docx/SKILL.md) | Edit and inspect `.docx` documents with the `paper-docx` distribution. |
 | [pptx](skills/pptx/SKILL.md) | Edit and inspect `.pptx` decks with the `paper-pptx` distribution. |
 
-The `xlsx`, `docx`, and `pptx` skills are vendored from
+The `docx` and `pptx` skills are vendored from
 [paper-instruments/skills](https://github.com/paper-instruments/skills) (MIT —
 each skill directory carries its LICENSE) and assume the matching `paper-*`
 distributions are installed in the agent's environment. They document
-`paper-xlsx==0.2.1`, `paper-docx==0.2.0`, and `paper-pptx==0.2.0`.
+`paper-docx==0.2.0` and `paper-pptx==0.2.0`.
 
 ## Getting started
 
