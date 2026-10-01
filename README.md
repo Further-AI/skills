@@ -8,14 +8,14 @@ uses to perform a task.
 
 | Skill | Purpose |
 | --- | --- |
-| [Excel generation](skills/excel-generation/SKILL.md) | Build and check Excel workbooks from insurance documents and spreadsheets. |
+| [Spreadsheet](skills/excel-generation/SKILL.md) | Build and check Excel workbooks from insurance documents and spreadsheets. |
 | [Document extraction](skills/document-extraction/SKILL.md) | Extract structured fields from insurance documents. |
 | [Policy comparison](skills/policy-comparison/SKILL.md) | Compare policies, quotes, and renewal changes. |
 | [Loss-run analysis](skills/loss-run-analysis/SKILL.md) | Summarize claims history, losses, and trends. |
 | [Submission intake](skills/submission-intake/SKILL.md) | Summarize submission documents, missing information, and risk flags. |
 | [Coverage advisory](skills/coverage-advisory/SKILL.md) | Explain coverage, policy terms, and insurance requirements. |
-| [docx](skills/docx/SKILL.md) | Edit and inspect `.docx` documents with the `paper-docx` distribution. |
-| [pptx](skills/pptx/SKILL.md) | Edit and inspect `.pptx` decks with the `paper-pptx` distribution. |
+| [Documents](skills/docx/SKILL.md) | Edit and inspect `.docx` documents with the `paper-docx` distribution. |
+| [Presentation](skills/pptx/SKILL.md) | Edit and inspect `.pptx` decks with the `paper-pptx` distribution. |
 
 The `docx` and `pptx` skills are vendored from
 [paper-instruments/skills](https://github.com/paper-instruments/skills) (MIT —
@@ -30,7 +30,7 @@ Keep `name` equal to the skill folder and use optional metadata for its UI label
 ```yaml
 name: pptx
 metadata:
-  furtherai-display-name: PowerPoint
+  furtherai-display-name: Presentation
 ```
 
 The label changes how the skill appears in FurtherAI. Identifiers, permissions,
