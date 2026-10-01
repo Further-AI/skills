@@ -85,8 +85,10 @@ These make the workbook trustworthy. `xlsx_kit` enforces most of them;
 - **Account for every record exactly once.** Categories are mutually exclusive:
   a record in "Needs Review" is not also in "Only on Policy". The summary shows
   a check that each source's total equals the sum of its buckets.
-- **Derive with formulas.** Counts, totals, differences, and sums on the
-  summary sheet are formulas over the data tabs (for example
+- **Derive with formulas.** In `xlsx_kit` helpers, wrap authored formulas in
+  `Formula("=...")`; ordinary strings stay literal text. The `count_rows`,
+  `sum_column`, and `balance_check` helpers already return `Formula` values.
+  Counts, totals, differences, and sums on the summary sheet are formulas over the data tabs (for example
   `=COUNTA('Only on Policy'!A2:A1048576)`), so they update when the user
   deletes resolved rows. Use functions every Excel version and LibreOffice
   support: SUM, SUMIFS, COUNTA, COUNTIFS, IF, IFERROR, INDEX, MATCH. Avoid

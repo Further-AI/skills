@@ -29,6 +29,7 @@ Typical usage example:
   assert result.accounted_for(len(policy_vehicles), len(fleet_vehicles))
 """
 
+import math
 import re
 from collections import defaultdict
 from collections.abc import Callable, Hashable, Mapping, Sequence
@@ -38,6 +39,21 @@ from typing import Final
 type Record = Mapping[str, object]
 type SecondaryKey = tuple[str, ...]
 
+_MISSING_KEYS: Final = frozenset(
+    {
+        "",
+        "n/a",
+        "na",
+        "none",
+        "null",
+        "nan",
+        "nat",
+        "undefined",
+        "<empty>",
+        "<na>",
+        "[object object]",
+    }
+)
 _NON_ALPHANUMERIC: Final = re.compile(r"[^0-9A-Z]")
 # VINs never contain I, O, or Q; when they appear they are misread 1s and 0s.
 _VIN_LOOKALIKES: Final = str.maketrans({"I": "1", "O": "0", "Q": "0"})
@@ -117,13 +133,20 @@ def normalize_key(value: object) -> str:
     same key.
 
     Args:
-        value: Raw identifier. None and blanks normalize to an empty string.
+        value: Raw identifier. Missing markers and non-finite numbers become
+            an empty string and cannot match other missing keys.
     """
     if value is None:
         return ""
-    if isinstance(value, float) and value.is_integer():
-        value = int(value)
-    return _NON_ALPHANUMERIC.sub("", str(value).upper())
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return ""
+        if value.is_integer():
+            value = int(value)
+    text = str(value).strip()
+    if text.casefold() in _MISSING_KEYS:
+        return ""
+    return _NON_ALPHANUMERIC.sub("", text.upper())
 
 
 def normalize_vin(value: object) -> str:

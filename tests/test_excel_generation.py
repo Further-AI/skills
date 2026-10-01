@@ -15,15 +15,18 @@ from xlsx_kit import (
     CellValue,
     Column,
     ColumnKind,
+    Formula,
     MatrixGroup,
     MatrixRow,
     Section,
     SummaryLine,
     add_matrix_sheet,
     add_table_sheet,
+    balance_check,
     coerce,
     count_rows,
     new_workbook,
+    sum_column,
     write_summary,
 )
 
@@ -175,3 +178,156 @@ def test_recalculate_rejects_changed_values_without_overwriting(tmp_path: Path) 
 def test_recalc_missing_libreoffice_reports_unavailable(tmp_path: Path) -> None:
     with patch.object(recalc, "find_soffice", return_value=None):
         assert recalc.main([str(tmp_path / "workbook.xlsx")]) == 2
+
+
+@pytest.mark.parametrize("raw", [0, False])
+def test_text_column_preserves_falsey_values(tmp_path: Path, raw: int | bool) -> None:
+    workbook = new_workbook()
+    add_table_sheet(workbook, "Data", [Column("Value")], [[raw]])
+    path = tmp_path / "falsey.xlsx"
+    workbook.save(path)
+    saved = load_workbook(path)
+    value = saved["Data"]["A2"].value
+    assert value == raw
+    assert type(value) is type(raw)
+    saved.close()
+
+
+@pytest.mark.parametrize("values", [[1], [1, 2, 3]])
+def test_table_rejects_sequence_rows_with_wrong_length(values: list[int]) -> None:
+    with pytest.raises(ValueError, match="expected 2"):
+        add_table_sheet(new_workbook(), "Data", [Column("A"), Column("B")], [values])
+
+
+@pytest.mark.parametrize("notes_header", [None, "Notes"])
+def test_matrix_writes_notes_only_when_enabled(
+    tmp_path: Path, notes_header: str | None
+) -> None:
+    workbook = new_workbook()
+    add_matrix_sheet(
+        workbook,
+        "Matrix",
+        row_header="Coverage",
+        columns=["Renewal"],
+        groups=[MatrixGroup("Limits", [MatrixRow("Property", [100], note="Check")])],
+        notes_header=notes_header,
+    )
+    path = tmp_path / "matrix.xlsx"
+    workbook.save(path)
+    saved = load_workbook(path)
+    sheet = saved["Matrix"]
+    assert sheet.max_column == (3 if notes_header else 2)
+    if notes_header:
+        assert sheet["C1"].value == "Notes"
+        assert sheet["C3"].value == "Check"
+    saved.close()
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        None,
+        "",
+        "N/A",
+        "na",
+        "<empty>",
+        "<NA>",
+        "null",
+        "NaN",
+        float("nan"),
+        float("inf"),
+    ],
+)
+def test_reconcile_missing_keys_never_match_without_other_evidence(
+    missing: object,
+) -> None:
+    left = [{"key": missing}]
+    right = [{"key": missing}]
+    result = reconcile(left, right, primary=lambda row: row["key"])
+    assert result.matched == []
+    assert result.review == []
+    assert result.left_only == left
+    assert result.right_only == right
+    assert result.accounted_for(1, 1)
+
+
+def test_reconcile_missing_primary_can_match_valid_secondary() -> None:
+    result = reconcile(
+        [{"key": "N/A", "unit": "001"}],
+        [{"key": "REAL123", "unit": "001"}],
+        primary=lambda row: row["key"],
+        secondary=lambda row: (row["unit"],),
+    )
+    assert len(result.matched) == 1
+    assert result.review == []
+    assert result.accounted_for(1, 1)
+
+
+def test_workbook_keeps_source_text_literal_and_authored_formulas_active(
+    tmp_path: Path,
+) -> None:
+    workbook = new_workbook()
+    source = '=HYPERLINK("https://example.invalid", "source")'
+    add_table_sheet(
+        workbook,
+        "Data",
+        [Column(source), Column("ID", "id"), Column("Number", "number")],
+        [[source, source, source], [Formula("=1+1"), None, None]],
+    )
+    add_matrix_sheet(
+        workbook,
+        "Matrix",
+        row_header=source,
+        columns=[source],
+        notes_header=source,
+        groups=[
+            MatrixGroup(
+                source,
+                [
+                    MatrixRow(source, [source], note=source),
+                    MatrixRow("Total", [Formula("=1+1")]),
+                ],
+            )
+        ],
+    )
+    write_summary(
+        workbook["Summary"],
+        title=source,
+        subtitle=source,
+        sections=[
+            Section(
+                source, [SummaryLine(source, source, source)], (source, source, source)
+            ),
+            Section(
+                None,
+                [
+                    SummaryLine("Count", count_rows("Data")),
+                    SummaryLine("Sum", sum_column("Data", "C")),
+                    SummaryLine("Check", balance_check(2, [1, 1])),
+                ],
+            ),
+        ],
+    )
+    path = tmp_path / "literal.xlsx"
+    workbook.save(path)
+    saved = load_workbook(path)
+    source_cells = [
+        cell for sheet in saved for row in sheet for cell in row if cell.value == source
+    ]
+    assert len(source_cells) == 20
+    assert all(cell.data_type == "s" for cell in source_cells)
+    formula_cells = [
+        cell
+        for sheet in saved
+        for row in sheet
+        for cell in row
+        if cell.data_type == "f"
+    ]
+    assert len(formula_cells) == 5
+    saved.close()
+
+
+@pytest.mark.parametrize("expression", ["1+1", "=", "=   "])
+def test_formula_rejects_missing_expression(expression: str) -> None:
+    with pytest.raises(ValueError, match="must start"):
+        Formula(expression)

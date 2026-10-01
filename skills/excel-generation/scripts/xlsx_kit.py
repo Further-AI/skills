@@ -42,9 +42,10 @@ import re
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Final, Literal, cast
+from typing import Any, Final, Literal, Self, cast
 
 from openpyxl import Workbook
+from openpyxl.cell.cell import Cell
 from openpyxl.formatting.rule import (
     FormulaRule,  # pyright: ignore[reportUnknownVariableType]
 )
@@ -118,6 +119,35 @@ _PORTRAIT_MAX_COLUMNS: Final = 5
 MATRIX_SHEETS_PROPERTY: Final = "excel-generation:matrix-sheets"
 
 
+class Formula(str):
+    """Marks an intentionally authored Excel formula, never extracted source text."""
+
+    def __new__(cls, expression: str) -> Self:
+        """Creates a formula from an expression beginning with '='.
+
+        Args:
+            expression: Trusted formula including its leading equals sign.
+
+        Returns:
+            A formula that workbook writers may execute.
+
+        Raises:
+            ValueError: If the expression lacks '=' or a formula body.
+        """
+        if not expression.startswith("=") or not expression[1:].strip():
+            raise ValueError("A formula must start with '=' and have a body")
+        return super().__new__(cls, expression)
+
+
+def _write_cell(ws: Worksheet, *, row: int, column: int, value: CellValue) -> Cell:
+    """Writes literal strings as text; only explicit Formula values execute."""
+    cell = ws.cell(row=row, column=column, value=value)
+    if isinstance(value, str) and not isinstance(value, Formula):
+        # openpyxl otherwise interprets source strings beginning with '=' as formulas.
+        cell.data_type = "s"
+    return cell
+
+
 @dataclass(frozen=True, slots=True)
 class Column:
     """One column of a data sheet.
@@ -148,7 +178,7 @@ class SummaryLine:
 
     Attributes:
         label: What the value is, in the reader's terms.
-        value: A literal value or a formula string starting with "=".
+        value: A literal value or an explicit `Formula` for a calculation.
         note: Optional explanation shown in the third column.
         number_format: Excel number format for the value. Integers and formulas
             default to "#,##0"; pass a currency or percent format when needed.
@@ -269,19 +299,17 @@ def coerce(value: object, kind: ColumnKind) -> CellValue:
         The converted value, None for blanks, or the original value if it
         could not be converted.
     """
-    if value is None:
-        return None
+    if value is None or isinstance(value, Formula):
+        return value
     if not isinstance(value, str | int | float | bool | dt.date):
         value = str(value)  # Decimals, numpy scalars, and the like.
     if isinstance(value, str):
         text = value.strip()
         if text.lower() in _LEAKED_TOKENS:
             return None
-        if text.startswith("="):
-            return text  # Formulas pass through untouched.
         value = text
     if kind == "text":
-        return value or None
+        return None if value == "" else value
     if kind == "id":
         return _to_id(value)
     if isinstance(value, str) and value.lower() in _MISSING_MARKERS:
@@ -317,16 +345,21 @@ def add_table_sheet(
         title: Sheet title; made valid and unique with `safe_sheet_title`.
         columns: Column definitions in display order.
         rows: Records, each either a mapping keyed by column header or a
-            sequence in column order. Missing mapping keys become blank cells.
+            sequence with exactly one value per column. Missing mapping keys
+            become blank cells.
         freeze_first_column: Also freeze column A, useful for wide sheets
             whose first column identifies the record.
 
     Returns:
         The new worksheet.
+
+    Raises:
+        ValueError: If a sequence row does not match the column count.
     """
     ws = wb.create_sheet(safe_sheet_title(title, wb.sheetnames))
     headers = [column.header for column in columns]
-    ws.append(headers)
+    for col, header in enumerate(headers, start=1):
+        _write_cell(ws, row=1, column=col, value=header)
     _style_header_row(ws, len(columns))
 
     problems: list[str] = []
@@ -336,11 +369,15 @@ def add_table_sheet(
             if isinstance(record, Mapping)
             else list(record)
         )
+        if len(raw_values) != len(columns):
+            raise ValueError(
+                f"Row {row_number} has {len(raw_values)} values; expected {len(columns)}"
+            )
         for col_number, (column, raw) in enumerate(
-            zip(columns, raw_values, strict=False), 1
+            zip(columns, raw_values, strict=True), 1
         ):
             value = coerce(raw, column.kind)
-            cell = ws.cell(row=row_number, column=col_number, value=value)
+            cell = _write_cell(ws, row=row_number, column=col_number, value=value)
             cell.font = Font(name=FONT_NAME, size=FONT_SIZE)
             cell.number_format = column.number_format or _NUMBER_FORMATS[column.kind]
             if column.wrap:
@@ -404,7 +441,8 @@ def add_matrix_sheet(
         )
     ws = wb.create_sheet(safe_sheet_title(title, wb.sheetnames))
     headers = [row_header, *columns, *([notes_header] if notes_header else [])]
-    ws.append(headers)
+    for col, header in enumerate(headers, start=1):
+        _write_cell(ws, row=1, column=col, value=header)
     _style_header_row(ws, len(headers))
     for col in range(2, len(columns) + 2):  # Align headers with their numbers.
         ws.cell(row=1, column=col).alignment = Alignment(
@@ -420,14 +458,19 @@ def add_matrix_sheet(
             cell = ws.cell(row=row_number, column=col)
             cell.fill = group_fill
             cell.font = Font(name=FONT_NAME, size=FONT_SIZE, bold=True)
-        ws.cell(row=row_number, column=1, value=group.heading)
+        _write_cell(ws, row=row_number, column=1, value=group.heading)
         row_number += 1
         for matrix_row in group.rows:
             if len(matrix_row.values) > len(columns):
                 raise ValueError(
                     f"Row {matrix_row.label!r} has more values than columns"
                 )
-            _write_matrix_row(ws, row_number, matrix_row, notes_column=len(columns) + 2)
+            _write_matrix_row(
+                ws,
+                row_number,
+                matrix_row,
+                notes_column=len(columns) + 2 if notes_header else None,
+            )
             row_number += 1
 
     if baseline is not None:
@@ -504,7 +547,7 @@ def column_letter(ws: Worksheet, header: str) -> str:
     raise KeyError(f"No column headed {header!r} on sheet {ws.title!r}")
 
 
-def count_rows(sheet_title: str, column: str = "A") -> str:
+def count_rows(sheet_title: str, column: str = "A") -> Formula:
     """Returns a formula counting the data rows of a sheet.
 
     Counts non-blank cells below the header, so pick a column that is filled
@@ -514,20 +557,20 @@ def count_rows(sheet_title: str, column: str = "A") -> str:
         sheet_title: Title of the data sheet, exactly as created.
         column: Column letter to count.
     """
-    return f"=COUNTA({quote_sheetname(sheet_title)}!{column}2:{column}1048576)"
+    return Formula(f"=COUNTA({quote_sheetname(sheet_title)}!{column}2:{column}1048576)")
 
 
-def sum_column(sheet_title: str, column: str) -> str:
+def sum_column(sheet_title: str, column: str) -> Formula:
     """Returns a formula summing a numeric column of a data sheet.
 
     Args:
         sheet_title: Title of the data sheet, exactly as created.
         column: Column letter to sum; get it with `column_letter`.
     """
-    return f"=SUM({quote_sheetname(sheet_title)}!{column}2:{column}1048576)"
+    return Formula(f"=SUM({quote_sheetname(sheet_title)}!{column}2:{column}1048576)")
 
 
-def balance_check(total: str | int, parts: Sequence[str | int]) -> str:
+def balance_check(total: str | int, parts: Sequence[str | int]) -> Formula:
     """Returns a formula showing "OK" when a total equals the sum of its parts.
 
     Use it on the summary sheet to prove every source record landed in exactly
@@ -546,7 +589,7 @@ def balance_check(total: str | int, parts: Sequence[str | int]) -> str:
         return value.removeprefix("=") if isinstance(value, str) else str(value)
 
     summed = "+".join(term(part) for part in parts) or "0"
-    return f'=IF({term(total)}={summed},"OK","MISMATCH")'
+    return Formula(f'=IF({term(total)}={summed},"OK","MISMATCH")')
 
 
 def write_summary(
@@ -569,11 +612,11 @@ def write_summary(
         subtitle: Optional line under the title, for example the preparation
             date and source documents.
     """
-    ws["A1"] = title
+    _write_cell(ws, row=1, column=1, value=title)
     ws["A1"].font = Font(name=FONT_NAME, size=14, bold=True, color=HEADER_FILL)
     row = 2
     if subtitle:
-        ws.cell(row=row, column=1, value=subtitle).font = Font(
+        _write_cell(ws, row=row, column=1, value=subtitle).font = Font(
             name=FONT_NAME, size=FONT_SIZE, italic=True, color="595959"
         )
         row += 1
@@ -581,13 +624,13 @@ def write_summary(
     for section in sections:
         row += 1  # Blank row before every section.
         if section.heading:
-            ws.cell(row=row, column=1, value=section.heading).font = Font(
+            _write_cell(ws, row=row, column=1, value=section.heading).font = Font(
                 name=FONT_NAME, size=11, bold=True, color=HEADER_FILL
             )
             row += 1
         if section.column_headers:
             for col, text in enumerate(section.column_headers, start=1):
-                ws.cell(row=row, column=col, value=text)
+                _write_cell(ws, row=row, column=col, value=text)
             _style_header_row(ws, len(section.column_headers), row=row)
             row += 1
         for line in section.lines:
@@ -604,22 +647,24 @@ def write_summary(
 
 
 def _write_matrix_row(
-    ws: Worksheet, row: int, matrix_row: MatrixRow, *, notes_column: int
+    ws: Worksheet, row: int, matrix_row: MatrixRow, *, notes_column: int | None
 ) -> None:
     """Writes one matrix row: label, typed values, and an optional note."""
     font = Font(name=FONT_NAME, size=FONT_SIZE)
-    label_cell = ws.cell(row=row, column=1, value=matrix_row.label)
+    label_cell = _write_cell(ws, row=row, column=1, value=matrix_row.label)
     label_cell.font = font
     label_cell.alignment = Alignment(indent=1, vertical="top")
     for offset, raw in enumerate(matrix_row.values):
-        cell = ws.cell(row=row, column=2 + offset, value=coerce(raw, matrix_row.kind))
+        cell = _write_cell(
+            ws, row=row, column=2 + offset, value=coerce(raw, matrix_row.kind)
+        )
         cell.font = font
         cell.number_format = (
             matrix_row.number_format or _NUMBER_FORMATS[matrix_row.kind]
         )
         cell.alignment = Alignment(horizontal="right", wrap_text=True, vertical="top")
-    if matrix_row.note:
-        note_cell = ws.cell(row=row, column=notes_column, value=matrix_row.note)
+    if notes_column is not None and matrix_row.note:
+        note_cell = _write_cell(ws, row=row, column=notes_column, value=matrix_row.note)
         note_cell.font = Font(name=FONT_NAME, size=FONT_SIZE, color="595959")
         note_cell.alignment = Alignment(wrap_text=True, vertical="top")
 
@@ -663,11 +708,11 @@ def _register_matrix_sheet(wb: Workbook, title: str) -> None:
 def _write_summary_line(ws: Worksheet, row: int, line: SummaryLine) -> None:
     """Writes one summary line across columns A to C."""
     font = Font(name=FONT_NAME, size=FONT_SIZE)
-    ws.cell(row=row, column=1, value=line.label).font = font
-    value_cell = ws.cell(row=row, column=2, value=line.value)
+    _write_cell(ws, row=row, column=1, value=line.label).font = font
+    value_cell = _write_cell(ws, row=row, column=2, value=line.value)
     value_cell.font = font
     value_cell.alignment = Alignment(horizontal="right")
-    is_formula = isinstance(line.value, str) and line.value.startswith("=")
+    is_formula = isinstance(line.value, Formula)
     if line.number_format:
         value_cell.number_format = line.number_format
     elif is_formula or isinstance(line.value, int):
@@ -678,7 +723,7 @@ def _write_summary_line(ws: Worksheet, row: int, line: SummaryLine) -> None:
             horizontal="left", wrap_text=True, vertical="top"
         )
     if line.note:
-        note_cell = ws.cell(row=row, column=3, value=line.note)
+        note_cell = _write_cell(ws, row=row, column=3, value=line.note)
         note_cell.font = Font(name=FONT_NAME, size=FONT_SIZE, color="595959")
         note_cell.alignment = Alignment(wrap_text=True, vertical="top")
 
@@ -740,7 +785,7 @@ def _is_unconverted(value: object, kind: ColumnKind) -> bool:
     """Returns whether a coerced value still doesn't match its column kind."""
     if value is None or kind in {"text", "id"}:
         return False
-    if isinstance(value, str) and value.startswith("="):
+    if isinstance(value, Formula):
         return False
     return isinstance(value, str)
 

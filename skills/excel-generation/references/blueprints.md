@@ -101,8 +101,8 @@ a bucket of records.
 - *Locations (SOV):* Loc #, Bldg #, Source Ref, Address, City, State, ZIP,
   Occupancy, Construction, Year Built, Stories, Sq Ft, Sprinklered, Protection
   Class, Building Value, Contents (BPP), Business Income, Other, TIV. TIV is a
-  row formula over the value columns, written as a string in each row, e.g.
-  `f"=SUM(O{row}:R{row})"` with `row = index + 2`.
+  row formula over the value columns, wrapped in `Formula` in each row, e.g.
+  `Formula(f"=SUM(O{row}:R{row})")` with `row = index + 2`.
 - *Drivers:* Driver #, Source Ref, Name, DOB, License #, License State, Hire
   Date, Violations, Accidents, Excluded. Include personal data only when the
   user needs it.
