@@ -8,6 +8,7 @@ uses to perform a task.
 
 | Skill | Purpose |
 | --- | --- |
+| [Excel generation](skills/excel-generation/SKILL.md) | Build and check Excel workbooks from insurance documents and spreadsheets. |
 | [Document extraction](skills/document-extraction/SKILL.md) | Extract structured fields from insurance documents. |
 | [Policy comparison](skills/policy-comparison/SKILL.md) | Compare policies, quotes, and renewal changes. |
 | [Loss-run analysis](skills/loss-run-analysis/SKILL.md) | Summarize claims history, losses, and trends. |
@@ -39,55 +40,61 @@ is gitignored.
 The ZIP contains `SKILL.md` at its root and preserves resource paths, file contents,
 and executable flags. Unchanged inputs produce identical ZIPs.
 
-## Where bundles go
+## Automatic publication
 
-On pull requests and pushes to `main`, CI runs tests, checks types, and packages
-every directory under `skills/`. Open a completed run in
-[Actions](https://github.com/Further-AI/furtherai-skills/actions/workflows/validate.yml)
-and download `skill-bundles` under **Artifacts** to get one ZIP per skill and a
-`catalog.json` listing the complete repository snapshot.
+Merging to `main` publishes every skill to staging and production after tests,
+type checks, and bundle validation pass. Each environment uploads the complete
+catalog and activates it atomically. Evaluation scores do not block merges or
+publication. The two publishing jobs run independently; a failure in one does
+not cancel the other.
 
-When publishing is enabled, a successful run on the current `main` commit also:
+Every published skill is enabled in the destination catalog, including newly
+added folders. There is no separate availability list to update. Removing a
+folder retires that skill from future use; historical bundles remain stored.
+Failed uploads, stale commits, and catalog conflicts leave that environment's
+active catalog unchanged.
 
-1. Authenticates with GitHub OIDC and reads the current backend catalog revision.
-2. Uploads every validated ZIP to US staging as an immutable Azure bundle.
-3. Activates the complete name-to-digest mapping in one conditional catalog write.
+Logfire's `flag_enable_furtherai_skills` remains the global off switch.
+Organization permissions, personal opt-outs, and product-specific skill selection
+still apply. Publishing makes a skill available; it does not force every agent to
+load it. Product surface assignments remain backend configuration.
 
-Additions, updates, and deletions take effect together. A missing artifact or failed
-upload leaves the previous catalog unchanged. The artifact manifest distinguishes
-an intentionally empty repository from an incomplete download; an empty manifest
-retires all FurtherAI skills. Releases run one at a time, and stale commits or
-conflicting catalog revisions fail without retrying activation.
-
-Existing pins keep their exact versions while the skill remains active. Removing
-a skill blocks future retrieval and resolution of that name, including saved pins;
-already staged content is not recalled. Historical bundles remain stored.
-Agent defaults and common skill selection stay in the backend. Publishing does not
-change rollout flags or organization/member preferences. These checks validate
-packaging; they do not evaluate task quality.
-
-To package a complete local artifact, use a fresh output directory:
+Download each environment's `skill-bundles` artifact from
+[Actions](https://github.com/Further-AI/skills/actions/workflows/validate.yml).
+To package the complete catalog locally:
 
 ```sh
 uv run python -m scripts.skill_catalog skills --output dist/release
 ```
 
-## Enable staging publishing
+## Configure publishing
 
-Deploy the backend with `GET/PUT /api/v1/internal/skills/catalog` before enabling
-this publisher. An older backend rejects the new flow before any upload. Then:
+Both backends must support `GET/PUT /api/v1/internal/skills/catalog`, including
+`enabled_skills`, and have their FurtherAI ownership and Azure storage settings
+configured.
 
-- Create a GitHub environment named `us-staging`, restricted to `main`.
-- In that environment, set `SKILLS_API_URL` to the backend's HTTPS base URL,
-  without `/api/v1`. The publisher calls `/api/v1/internal/skills`.
-- Configure the backend's `SKILLS_PUBLISH_AUDIENCE` as `furtherai-skills-us-staging`
-  and its FurtherAI ownership and Azure storage settings.
-- Set the **repository variable** `SKILLS_PUBLISH_ENABLED` to `true`.
+Create these GitHub environments, restricted to `main`, and set `SKILLS_API_URL`
+in each to its backend's HTTPS base URL without `/api/v1`:
 
-Run **Validate and publish** manually on the current `main` commit to publish the
-skills. Later merges publish automatically. No Azure credentials or long-lived
-publishing token are needed in this repository. A catalog conflict stops the run;
-check the competing release before rerunning the current `main` commit.
+| GitHub environment | Destination | Backend `SKILLS_PUBLISH_AUDIENCE` |
+| --- | --- | --- |
+| `us-staging` | US staging backend | `furtherai-skills-us-staging` |
+| `us-production` | US production backend | `furtherai-skills-production` |
+
+Set the repository variable `SKILLS_PUBLISH_ENABLED` to `true`. The publisher uses
+GitHub OIDC; no GitHub App, Braintrust key, Azure credential, or long-lived
+publishing token is required in this repository for publication.
+
+Run **Validate and publish** manually on the current `main` commit to verify both
+environments. Later merges publish automatically. Missing configuration fails
+the affected job. A catalog conflict stops publication; inspect the competing
+release before rerunning the current `main` commit.
+
+## Evaluation
+
+Run quality comparisons separately using the backend evaluation suite. This
+repository does not trigger evaluations or require their results to publish.
+Only `validate` is a required branch check.
 
 ## Adding a skill
 
@@ -97,7 +104,8 @@ delimiters, followed by the instructions. The name must match the folder.
 Use an existing skill as an example.
 
 Optional `scripts/`, `references/`, `assets/`, and other resource files are included
-recursively. Only the skill's root `tests/` directory is excluded. Run the same
+recursively. The skill's root `tests/` and all `__pycache__/` directories are
+excluded. Run the same
 packaging command with your skill's path; CI discovers it automatically.
 
 Packaging rejects symlinks, special files, and unsafe paths. Limits per skill:
@@ -123,5 +131,5 @@ lives in [scripts/publish_skill.py](scripts/publish_skill.py). Tests are in `tes
 
 ```sh
 uv run pytest -x --tb=short
-uv run ty check scripts tests
+uv run ty check scripts tests skills/excel-generation/scripts
 ```

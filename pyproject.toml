@@ -6,8 +6,17 @@ requires-python = ">=3.12"
 dependencies = []
 
 [dependency-groups]
-dev = ["pydantic>=2,<3", "pyyaml>=6,<7", "pytest>=8", "ty"]
+dev = [
+    "pydantic>=2,<3",
+    "pyyaml>=6,<7",
+    "pytest>=8",
+    "ty",
+    "openpyxl>=3.1.5,<4",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = [".", "skills/excel-generation/scripts"]
+
+[tool.ty.environment]
+extra-paths = ["skills/excel-generation/scripts"]

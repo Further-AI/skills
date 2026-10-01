@@ -21,16 +21,7 @@ jobs:
           python-version: "3.12"
       - run: uv sync --locked
       - run: uv run pytest -x --tb=short
-      - run: uv run ty check scripts tests
-      - name: Package skills
-        run: |
-          mkdir -p skills
-          uv run python -m scripts.skill_catalog skills --output dist
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: skill-bundles
-          path: dist/
-          if-no-files-found: error
+      - run: uv run ty check scripts tests skills/excel-generation/scripts
 
   publish:
     needs: validate
@@ -40,12 +31,21 @@ jobs:
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: us-staging
+    strategy:
+      # A failure in one environment must not cancel the other publication.
+      fail-fast: false
+      matrix:
+        include:
+          - environment: us-staging
+            audience: furtherai-skills-us-staging
+          - environment: us-production
+            audience: furtherai-skills-production
+    environment: ${{ matrix.environment }}
     permissions:
       contents: read
       id-token: write
     concurrency:
-      group: skills-publish-us-staging
+      group: skills-publish-${{ matrix.environment }}
       # An older validation run must not replace the newest pending release.
       queue: max
       cancel-in-progress: false
@@ -60,19 +60,25 @@ jobs:
             echo "::error::A newer commit is on main. Run the workflow for the current main commit."
             exit 1
           fi
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: skill-bundles
-          path: dist
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.10.4"
           python-version: "3.12"
       - run: uv sync --locked
+      - name: Package skills
+        run: |
+          mkdir -p skills
+          uv run python -m scripts.skill_catalog skills --output dist
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: skill-bundles-${{ matrix.environment }}
+          path: dist/
+          if-no-files-found: error
       - name: Publish complete catalog
         env:
           SKILLS_API_URL: ${{ vars.SKILLS_API_URL }}
+          SKILLS_PUBLISH_AUDIENCE: ${{ matrix.audience }}
         run: |
           uv run python -m scripts.publish_skill dist \
             --api-url "$SKILLS_API_URL" \
-            --audience furtherai-skills-us-staging
+            --audience "$SKILLS_PUBLISH_AUDIENCE"
