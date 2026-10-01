@@ -9,11 +9,6 @@ uses to perform a task.
 | Skill | Purpose |
 | --- | --- |
 | [Spreadsheet](skills/excel-generation/SKILL.md) | Build and check Excel workbooks from insurance documents and spreadsheets. |
-| [Document extraction](skills/document-extraction/SKILL.md) | Extract structured fields from insurance documents. |
-| [Policy comparison](skills/policy-comparison/SKILL.md) | Compare policies, quotes, and renewal changes. |
-| [Loss-run analysis](skills/loss-run-analysis/SKILL.md) | Summarize claims history, losses, and trends. |
-| [Submission intake](skills/submission-intake/SKILL.md) | Summarize submission documents, missing information, and risk flags. |
-| [Coverage advisory](skills/coverage-advisory/SKILL.md) | Explain coverage, policy terms, and insurance requirements. |
 | [Documents](skills/docx/SKILL.md) | Edit and inspect `.docx` documents with the `paper-docx` distribution. |
 | [Presentation](skills/pptx/SKILL.md) | Edit and inspect `.pptx` decks with the `paper-pptx` distribution. |
 
@@ -44,10 +39,10 @@ from the repository root:
 
 ```sh
 uv sync --locked
-uv run python scripts/skill_bundle.py skills/document-extraction --output dist/document-extraction.zip
+uv run python scripts/skill_bundle.py skills/excel-generation --output dist/excel-generation.zip
 ```
 
-This validates the skill and writes `dist/document-extraction.zip`. Omit
+This validates the skill and writes `dist/excel-generation.zip`. Omit
 `--output` and its path to validate without creating a ZIP. The `dist/` directory
 is gitignored.
 
@@ -62,16 +57,18 @@ catalog and activates it atomically. Evaluation scores do not block merges or
 publication. The two publishing jobs run independently; a failure in one does
 not cancel the other.
 
-Every published skill is enabled in the destination catalog, including newly
-added folders. There is no separate availability list to update. Removing a
-folder retires that skill from future use; historical bundles remain stored.
+The catalog contains Documents, Spreadsheet, and Presentation. Every published
+skill is enabled in the destination catalog, including newly added folders. There
+is no separate availability list to update. Removing a folder retires that skill
+from future use; historical bundles remain stored.
 Failed uploads, stale commits, and catalog conflicts leave that environment's
 active catalog unchanged.
 
 Logfire's `flag_enable_furtherai_skills` remains the global off switch.
-Organization permissions, personal opt-outs, and product-specific skill selection
-still apply. Publishing makes a skill available; it does not force every agent to
-load it. Product surface assignments remain backend configuration.
+With backend support for catalog defaults deployed, published skills turn on
+automatically for organizations and members with no saved setting. Explicit admin
+disables and personal opt-outs remain in effect. UAA includes enabled skills in
+its automatic roster; other agent surfaces keep their own selection rules.
 
 Download each environment's `skill-bundles` artifact from
 [Actions](https://github.com/Further-AI/skills/actions/workflows/validate.yml).
