@@ -10,8 +10,6 @@ from textwrap import dedent
 import pytest
 import yaml
 
-from scripts.evaluation_comment import Summary, Update, render
-
 
 def run_workflow_step(
     job: str,
@@ -20,9 +18,8 @@ def run_workflow_step(
     env: dict[str, str],
 ) -> subprocess.CompletedProcess[str]:
     """Run the workflow's actual step with GitHub Actions' fail-fast shell behavior."""
-    filename = "evaluate.yml" if job == "evaluate" else "validate.yml"
     workflow = yaml.safe_load(
-        (Path(__file__).parents[1] / ".github/workflows" / filename).read_text()
+        (Path(__file__).parents[1] / ".github/workflows" / "validate.yml").read_text()
     )
     command = next(
         step["run"]
@@ -46,9 +43,6 @@ def workflow_environment(tmp_path: Path) -> dict[str, str]:
     executable.write_text('#!/bin/sh\nshift\nshift\nexec "$TEST_PYTHON" "$@"\n')
     executable.chmod(0o755)
     (tmp_path / "scripts").mkdir()
-    (tmp_path / "availability.yaml").write_text(
-        "staging: {enabled_skills: []}\nproduction: {enabled_skills: []}\n"
-    )
     return {
         **os.environ,
         "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
@@ -114,6 +108,7 @@ def test_workflow_publishes_catalog_once_and_propagates_failure(
             **workflow_environment,
             "FAIL_SECOND": str(fail_second).lower(),
             "SKILLS_API_URL": "https://example.test",
+            "SKILLS_PUBLISH_AUDIENCE": "furtherai-skills-us-staging",
         },
     )
     assert result.returncode == (1 if fail_second else 0), result.stderr
@@ -176,178 +171,29 @@ def test_workflow_packages_empty_repository_after_last_skill_is_deleted(
     ]
     assert json.loads((tmp_path / "dist/catalog.json").read_text()) == {
         "skills": [],
-        "availability": {
-            "staging": {"enabled_skills": []},
-            "production": {"enabled_skills": []},
-        },
     }
 
 
-@pytest.mark.parametrize("conclusion", ["success", "failure", "cancelled", "timed_out"])
-def test_evaluation_wait_propagates_backend_result(
-    tmp_path: Path, conclusion: str
-) -> None:
-    """Exercise the actual wait step; unsuccessful backend runs must block release."""
-    timeout = tmp_path / "timeout"
-    timeout.write_text('#!/bin/sh\nshift\nshift\nexec "$@"\n')
-    timeout.chmod(0o755)
-    gh = tmp_path / "gh"
-    gh.write_text(
-        "#!/bin/sh\n"
-        'test "$1 $2 $3" = "run watch 123" || exit 2\n'
-        'case " $* " in *" --exit-status "*) ;; *) exit 3;; esac\n'
-        'test "$TEST_CONCLUSION" = success\n'
-    )
-    gh.chmod(0o755)
-    result = run_workflow_step(
-        "evaluate",
-        "Wait for evaluation to pass",
-        tmp_path,
-        {
-            **os.environ,
-            "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
-            "RUN_ID": "123",
-            "GITHUB_OUTPUT": str(tmp_path / "output"),
-            "TEST_CONCLUSION": conclusion,
-        },
-    )
-    assert (result.returncode == 0) == (conclusion == "success")
-
-
-@pytest.mark.parametrize(
-    "response, succeeds",
-    [
-        ('{"workflow_run_id": 123}', True),
-        ("{}", False),
-        ('{"workflow_run_id": "wrong"}', False),
-        ('{"workflow_run_id": 0}', False),
-    ],
-)
-@pytest.mark.parametrize("base_commit", ["", "b" * 40])
-def test_dispatch_requires_the_returned_run_identity(
-    tmp_path: Path, response: str, succeeds: bool, base_commit: str
-) -> None:
-    """A missing or malformed dispatch response cannot reuse an older passing run."""
-    gh = tmp_path / "gh"
-    gh.write_text(
-        '#!/bin/sh\nprintf "%s\\n" "$@" > dispatch-args.txt\nprintf "%s" "$TEST_RESPONSE"\n'
-    )
-    gh.chmod(0o755)
-    output = tmp_path / "output"
-    result = run_workflow_step(
-        "evaluate",
-        "Start evaluation for this exact commit",
-        tmp_path,
-        {
-            **os.environ,
-            "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
-            "SKILLS_COMMIT": "a" * 40,
-            "BASE_COMMIT": base_commit,
-            "TEST_RESPONSE": response,
-            "GITHUB_OUTPUT": str(output),
-            "GITHUB_STEP_SUMMARY": str(tmp_path / "summary"),
-        },
-    )
-    assert (result.returncode == 0) == succeeds
-    assert (
-        f"inputs[base_commit]={base_commit}"
-        in (tmp_path / "dispatch-args.txt").read_text().splitlines()
-    )
-    if succeeds:
-        assert output.read_text().strip() == "run_id=123"
-    else:
-        assert not output.exists()
-
-
-def test_publishing_requires_validation_and_evaluation() -> None:
-    """Neither a failed nor a skipped evaluation may bypass the publish dependency."""
+def test_publishing_is_independent_of_evaluation_in_both_environments() -> None:
+    """Publish both environments without judge dependencies or shared cancellation."""
     workflow = yaml.safe_load(
         (Path(__file__).parents[1] / ".github/workflows/validate.yml").read_text()
     )
     jobs = workflow["jobs"]
-    assert set(jobs["publish"]["needs"]) == {"validate", "evaluate"}
+    assert jobs["publish"]["needs"] == "validate"
+    assert "evaluate" not in jobs
     assert "always()" not in jobs["publish"]["if"]
-    assert "continue-on-error" not in jobs["evaluate"]
-    assert jobs["evaluate"]["needs"] == "validate"
+    publish = jobs["publish"]
+    assert publish["strategy"]["fail-fast"] is False
+    assert publish["strategy"]["matrix"]["include"] == [
+        {"environment": "us-staging", "audience": "furtherai-skills-us-staging"},
+        {"environment": "us-production", "audience": "furtherai-skills-us-production"},
+    ]
+    assert publish["environment"] == "${{ matrix.environment }}"
+    assert "matrix.environment" in publish["concurrency"]["group"]
     assert all(
         step.get("name") != "Package skills" for step in jobs["validate"]["steps"]
     )
     assert any(
         step.get("name") == "Package skills" for step in jobs["publish"]["steps"]
     )
-
-
-def test_pr_evaluation_uses_head_commit_and_serialized_trusted_comment_code() -> None:
-    """Catch accidental use of the merge ref or execution of PR code with secrets."""
-    directory = Path(__file__).parents[1] / ".github/workflows"
-    pr = yaml.safe_load((directory / "evaluate-pr.yml").read_text())
-    # PyYAML's YAML 1.1 loader reads the unquoted GitHub `on` key as True.
-    assert set(pr[True]["pull_request_target"]["types"]) >= {"opened", "synchronize"}
-    for job in pr["jobs"].values():
-        assert job["with"]["commit"] == "${{ github.event.pull_request.head.sha }}"
-    assert (
-        pr["jobs"]["evaluate"]["with"]["base_commit"]
-        == "${{ github.event.pull_request.base.sha }}"
-    )
-    comment = yaml.safe_load((directory / "evaluation-comment.yml").read_text())
-    job = comment["jobs"]["comment"]
-    checkout = next(
-        step
-        for step in job["steps"]
-        if step.get("uses", "").startswith("actions/checkout@")
-    )
-    assert checkout["with"]["ref"] == "${{ github.event.pull_request.base.sha }}"
-    assert job["concurrency"]["cancel-in-progress"] is False
-    assert "inputs.pr" in job["concurrency"]["group"]
-    evaluate = yaml.safe_load((directory / "evaluate.yml").read_text())
-    dispatch = next(
-        step
-        for step in evaluate["jobs"]["evaluate"]["steps"]
-        if step.get("id") == "dispatch"
-    )
-    assert dispatch["env"]["SKILLS_COMMIT"] == "${{ inputs.commit }}"
-    assert "-f ref=main" in dispatch["run"]
-
-
-@pytest.mark.parametrize("blocked", [False, True])
-def test_pr_comment_distinguishes_skipped_skills_from_uncovered_enablement(
-    blocked: bool,
-) -> None:
-    summary = Summary.model_validate(
-        {
-            "commit": "a" * 40,
-            "status": "failed" if blocked else "not_applicable",
-            "skills": [{"name": "paper", "status": "not_configured"}]
-            if blocked
-            else [],
-            "skipped_skills": [] if blocked else ["paper"],
-        }
-    )
-    update = Update(
-        pr=15,
-        commit="a" * 40,
-        state="failure" if blocked else "success",
-        run=1,
-        attempt=1,
-    )
-    body = render(update, summary)
-    if blocked:
-        assert "Gate: Failed" in body
-        assert "Enabled without an evaluation profile" in body
-        assert "Not evaluated (disabled" not in body
-    else:
-        assert "Gate: No affected skills with evaluation profiles" in body
-        assert "Not evaluated (disabled, no profile): `paper`" in body
-        assert "Gate: Passed" not in body
-
-
-def test_pr_comment_rejects_unvalidated_skipped_skill_names() -> None:
-    with pytest.raises(ValueError):
-        Summary.model_validate(
-            {
-                "commit": "a" * 40,
-                "status": "not_applicable",
-                "skills": [],
-                "skipped_skills": ["[click](https://example.test)"],
-            }
-        )

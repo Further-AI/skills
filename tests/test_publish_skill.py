@@ -8,7 +8,6 @@ from email.parser import BytesParser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
-from typing import Literal
 from unittest.mock import Mock, patch
 from urllib.error import URLError
 from urllib.parse import parse_qs, urlsplit
@@ -49,7 +48,6 @@ def artifact(tmp_path: Path) -> Path:
         skill = source / name
         skill.mkdir(parents=True)
         (skill / "SKILL.md").write_text(f"---\nname: {name}\ndescription: Extract fields.\n---\nExtract.\n")
-    (tmp_path / "availability.yaml").write_text("staging: {enabled_skills: []}\nproduction: {enabled_skills: []}\n")
     output = tmp_path / "dist"
     package_catalog(source, output)
     return output
@@ -62,7 +60,7 @@ def release(skills: dict[str, str]) -> bytes:
             "revision": "11111111-1111-4111-8111-111111111111",
             "commit_sha": "c" * 40,
             "skills": skills,
-            "enabled_skills": [],
+            "enabled_skills": list(skills),
         }
     ).encode()
 
@@ -93,17 +91,25 @@ def request_mock() -> Iterator[Mock]:
         yield mocked
 
 
+@pytest.mark.parametrize(
+    "api_url,audience",
+    [
+        ("https://staging.example", "furtherai-skills-us-staging"),
+        ("https://production.example", "furtherai-skills-us-production"),
+    ],
+)
 def test_publish_catalog_uploads_every_artifact_before_one_activation(
     context: publish_skill.CIContext,
     artifact: Path,
     request_mock: Mock,
+    api_url: str,
+    audience: str,
 ) -> None:
     result = publish_skill.publish_catalog(
         artifact,
-        api_url=API_URL,
-        audience=AUDIENCE,
+        api_url=api_url,
+        audience=audience,
         context=context,
-        environment="staging",
     )
     assert result.skills == {
         "document-extraction": DIGEST,
@@ -112,14 +118,14 @@ def test_publish_catalog_uploads_every_artifact_before_one_activation(
     token, current, first, second, activation = [call.args[0] for call in request_mock.call_args_list]
     assert parse_qs(urlsplit(token.full_url).query) == {
         "request": ["1"],
-        "audience": [AUDIENCE],
+        "audience": [audience],
     }
     assert token.get_header("Authorization") == "Bearer request-token"
-    assert current.full_url == f"{API_URL}/api/v1/internal/skills/catalog"
+    assert current.full_url == f"{api_url}/api/v1/internal/skills/catalog"
     assert current.get_method() == "GET"
     for upload, name in [(first, "document-extraction"), (second, "policy-comparison")]:
         assert upload.method == "POST"
-        assert upload.full_url == f"{API_URL}/api/v1/internal/skills/{name}/versions"
+        assert upload.full_url == f"{api_url}/api/v1/internal/skills/{name}/versions"
         assert upload.get_header("Authorization") == "Bearer identity-token"
         message = BytesParser(policy=policy.default).parsebytes(
             f"Content-Type: {upload.get_header('Content-type')}\r\n\r\n".encode() + upload.data
@@ -138,7 +144,7 @@ def test_publish_catalog_uploads_every_artifact_before_one_activation(
     assert json.loads(activation.data) == {
         "skills": result.skills,
         "expected_revision": None,
-        "enabled_skills": [],
+        "enabled_skills": list(result.skills),
     }
 
 
@@ -160,7 +166,6 @@ def test_publish_catalog_stops_on_failure_without_retrying(
             api_url=API_URL,
             audience=AUDIENCE,
             context=context,
-            environment="staging",
         )
     assert request_mock.call_count == failure_step + 1
 
@@ -179,7 +184,6 @@ def test_invalid_upload_response_blocks_activation(
             api_url=API_URL,
             audience=AUDIENCE,
             context=context,
-            environment="staging",
         )
     assert request_mock.call_count == 3
 
@@ -192,7 +196,6 @@ def test_empty_catalog_retires_all_at_observed_revision(
     source = tmp_path / "empty"
     source.mkdir()
     artifact = tmp_path / "dist"
-    (tmp_path / "availability.yaml").write_text("staging: {enabled_skills: []}\nproduction: {enabled_skills: []}\n")
     package_catalog(source, artifact)
     request_mock.side_effect = [
         b'{"value":"identity-token"}',
@@ -205,7 +208,6 @@ def test_empty_catalog_retires_all_at_observed_revision(
             api_url=API_URL,
             audience=AUDIENCE,
             context=context,
-            environment="staging",
         ).skills
         == {}
     )
@@ -243,7 +245,6 @@ def test_incomplete_artifact_is_rejected_before_network(
             api_url=API_URL,
             audience=AUDIENCE,
             context=context,
-            environment="staging",
         )
     request_mock.assert_not_called()
 
@@ -261,7 +262,6 @@ def test_mismatched_activation_is_not_reported_as_success(
             api_url=API_URL,
             audience=AUDIENCE,
             context=context,
-            environment="staging",
         )
 
 
@@ -287,7 +287,6 @@ def test_invalid_api_url_never_sends_credentials(
             api_url=url,
             audience=AUDIENCE,
             context=context,
-            environment="staging",
         )
     request_mock.assert_not_called()
 
@@ -326,7 +325,6 @@ def test_invalid_oidc_url_never_sends_credentials(
             api_url=API_URL,
             audience=AUDIENCE,
             context=context,
-            environment="staging",
         )
     request_mock.assert_not_called()
 
@@ -353,8 +351,6 @@ def test_main_reports_result_without_tokens(
                 str(artifact),
                 "--api-url",
                 API_URL,
-                "--environment",
-                "staging",
                 "--audience",
                 AUDIENCE,
             ],
@@ -429,41 +425,13 @@ def test_request_network_failure_hides_connection_details(failure: Exception) ->
     assert "secret-host" not in str(error.value)
 
 
-@pytest.mark.parametrize("environment,enabled", [("staging", ["document-extraction"]), ("production", [])])
-def test_publish_uses_only_target_environment_availability(
-    context: publish_skill.CIContext,
-    artifact: Path,
-    request_mock: Mock,
-    environment: Literal["staging", "production"],
-    enabled: list[str],
+@pytest.mark.parametrize("enabled", [None, [], ["document-extraction"]])
+def test_publish_rejects_backend_ignoring_availability(
+    context: publish_skill.CIContext, artifact: Path, request_mock: Mock, enabled: list[str] | None
 ) -> None:
-    manifest = json.loads((artifact / "catalog.json").read_text())
-    manifest["availability"]["staging"]["enabled_skills"] = ["document-extraction"]
-    (artifact / "catalog.json").write_text(json.dumps(manifest))
     responses = list(request_mock.side_effect)
     response = json.loads(responses[-1])
     response["enabled_skills"] = enabled
-    request_mock.side_effect = [*responses[:-1], json.dumps(response).encode()]
-
-    result = publish_skill.publish_catalog(
-        artifact,
-        api_url=API_URL,
-        audience=AUDIENCE,
-        context=context,
-        environment=environment,
-    )
-
-    assert result.enabled_skills == enabled
-    assert json.loads(request_mock.call_args.args[0].data)["enabled_skills"] == enabled
-    assert len(result.skills) == 2
-
-
-def test_publish_rejects_backend_ignoring_availability(
-    context: publish_skill.CIContext, artifact: Path, request_mock: Mock
-) -> None:
-    responses = list(request_mock.side_effect)
-    response = json.loads(responses[-1])
-    del response["enabled_skills"]
     request_mock.side_effect = [*responses[:-1], json.dumps(response).encode()]
     with pytest.raises(publish_skill.PublishingError, match="different repository snapshot"):
         publish_skill.publish_catalog(
@@ -471,43 +439,7 @@ def test_publish_rejects_backend_ignoring_availability(
             api_url=API_URL,
             audience=AUDIENCE,
             context=context,
-            environment="staging",
         )
-
-
-@pytest.mark.parametrize(
-    "availability",
-    [
-        {},
-        {
-            "staging": {"enabled_skills": ["missing"]},
-            "production": {"enabled_skills": []},
-        },
-        {
-            "staging": {"enabled_skills": ["document-extraction", "document-extraction"]},
-            "production": {"enabled_skills": []},
-        },
-        {"staging": {"enabled_skills": []}, "production": {"enabled_skils": []}},
-    ],
-)
-def test_invalid_availability_fails_before_network(
-    context: publish_skill.CIContext,
-    artifact: Path,
-    request_mock: Mock,
-    availability: dict[str, object],
-) -> None:
-    manifest = json.loads((artifact / "catalog.json").read_text())
-    manifest["availability"] = availability
-    (artifact / "catalog.json").write_text(json.dumps(manifest))
-    with pytest.raises(ValidationError):
-        publish_skill.publish_catalog(
-            artifact,
-            api_url=API_URL,
-            audience=AUDIENCE,
-            context=context,
-            environment="staging",
-        )
-    request_mock.assert_not_called()
 
 
 @pytest.mark.parametrize("repository", ["Further-AI/skills", "Further-AI/furtherai-skills"])

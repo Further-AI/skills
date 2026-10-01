@@ -154,7 +154,6 @@ def publish_catalog(
     api_url: str,
     audience: str,
     context: CIContext,
-    environment: Literal["staging", "production"],
 ) -> CatalogRelease:
     """Upload a complete artifact and activate it once; conflicts stop the release.
 
@@ -167,10 +166,9 @@ def publish_catalog(
         api_url: Target environment's backend URL.
         audience: OIDC audience configured for that backend.
         context: Verified GitHub job configuration.
-        environment: Availability list to activate on the target backend.
 
     Returns:
-        The release confirmed by the backend, including the requested allowlist.
+        The release confirmed by the backend, with every packaged skill enabled.
     """
     _check_url(api_url)
     _check_url(context.token_url)
@@ -180,9 +178,7 @@ def publish_catalog(
     expected_files = {"catalog.json", *(f"{name}.zip" for name in catalog.skills)}
     if {path.name for path in directory.iterdir()} != expected_files:
         raise PublishingError("Artifact files do not match the complete catalog manifest.")
-    enabled_skills = (
-        catalog.availability.staging if environment == "staging" else catalog.availability.production
-    ).enabled_skills
+    enabled_skills = catalog.skills
     token = _identity_token(context, audience)
     headers = {"Authorization": f"Bearer {token}"}
     base_url = f"{api_url.rstrip('/')}/api/v1/internal/skills"
@@ -231,7 +227,6 @@ def main() -> None:
     parser.add_argument("directory", type=Path)
     parser.add_argument("--api-url", required=True)
     parser.add_argument("--audience", required=True)
-    parser.add_argument("--environment", choices=["staging", "production"], required=True)
     args = parser.parse_args()
     try:
         context = CIContext.model_validate(dict(os.environ))
@@ -240,7 +235,6 @@ def main() -> None:
             api_url=args.api_url,
             audience=args.audience,
             context=context,
-            environment=args.environment,
         )
     except ValidationError:
         parser.exit(1, "Invalid CI configuration or publishing API response.\n")

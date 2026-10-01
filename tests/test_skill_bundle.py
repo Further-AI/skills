@@ -13,6 +13,18 @@ from scripts.skill_bundle import build_bundle, read_skill
 VALID_SKILL = "---\nname: test-skill\ndescription: Extract fields.\n---\nExtract the fields.\n"
 
 
+@pytest.mark.parametrize(
+    "directory", sorted((Path(__file__).parents[1] / "skills").iterdir()), ids=lambda path: path.name,
+)
+def test_repository_skill_packages_original_content(directory: Path, tmp_path: Path) -> None:
+    """Check every committed skill against the same validator used for publishing."""
+    output = tmp_path / f"{directory.name}.zip"
+    build_bundle(directory, output)
+    with ZipFile(output) as archive:
+        assert archive.read("SKILL.md") == (directory / "SKILL.md").read_bytes()
+        assert not any(name.startswith("tests/") for name in archive.namelist())
+
+
 @pytest.fixture
 def skill_dir(tmp_path: Path) -> Path:
     """Create an isolated skill folder."""

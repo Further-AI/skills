@@ -23,29 +23,29 @@ jobs:
       - run: uv run pytest -x --tb=short
       - run: uv run ty check scripts tests
 
-  evaluate:
-    needs: validate
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    uses: ./.github/workflows/evaluate.yml
-    with:
-      commit: ${{ github.sha }}
-    secrets:
-      evaluation_app_key: ${{ secrets.SKILLS_EVAL_APP_PRIVATE_KEY }}
-
   publish:
-    needs: [validate, evaluate]
+    needs: validate
     if: >-
       vars.SKILLS_PUBLISH_ENABLED == 'true' &&
       github.ref == 'refs/heads/main' &&
       (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: us-staging
+    strategy:
+      # A failure in one environment must not cancel the other publication.
+      fail-fast: false
+      matrix:
+        include:
+          - environment: us-staging
+            audience: furtherai-skills-us-staging
+          - environment: us-production
+            audience: furtherai-skills-us-production
+    environment: ${{ matrix.environment }}
     permissions:
       contents: read
       id-token: write
     concurrency:
-      group: skills-publish-us-staging
+      group: skills-publish-${{ matrix.environment }}
       # An older validation run must not replace the newest pending release.
       queue: max
       cancel-in-progress: false
@@ -71,14 +71,14 @@ jobs:
           uv run python -m scripts.skill_catalog skills --output dist
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: skill-bundles
+          name: skill-bundles-${{ matrix.environment }}
           path: dist/
           if-no-files-found: error
       - name: Publish complete catalog
         env:
           SKILLS_API_URL: ${{ vars.SKILLS_API_URL }}
+          SKILLS_PUBLISH_AUDIENCE: ${{ matrix.audience }}
         run: |
           uv run python -m scripts.publish_skill dist \
             --api-url "$SKILLS_API_URL" \
-            --audience furtherai-skills-us-staging \
-            --environment staging
+            --audience "$SKILLS_PUBLISH_AUDIENCE"
