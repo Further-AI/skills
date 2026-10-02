@@ -1,0 +1,787 @@
+naics_2017,industry,total,violent_acts,transportation,fires_explosions,falls_slips_trips,harmful_exposure,contact_with_objects
+,Total,5070,733,1937,93,844,687,756
+,Private industry,4616,595,1758,75,797,653,724
+,Goods producing,,,,,,,
+,Natural resources and mining,567,19,272,16,32,39,187
+,"Agriculture, forestry, fishing and hunting",475,16,233,9,26,30,160
+111,Crop production,188,7,97,5,14,12,53
+1111,Oilseed and grain farming,54,,27,,4,4,18
+11111,Soybean farming,7,,,,,,
+11115,Corn farming,19,,8,,,,6
+11119,Other grain farming,12,,8,,,,
+111191,Oilseed and grain combination farming,7,,5,,,,
+1112,Vegetable and melon farming,13,,9,,,,
+11121,Vegetable and melon farming,13,,9,,,,
+111211,Potato farming,4,,,,,,
+1113,Fruit and tree nut farming,14,,12,,,,
+11133,Noncitrus fruit and tree nut farming,13,,,,,,
+111331,Apple orchards,1,,,,,,
+111332,Grape vineyards,8,,,,,,
+111335,Tree nut farming,3,,,,,,
+1114,"Greenhouse, nursery, and floriculture production",12,2,4,,,,2
+11141,Food crops grown under cover,3,,,,,,
+11142,Nursery and floriculture production,8,,3,,,,2
+1119,Other crop farming,41,,21,,,5,13
+11194,Hay farming,13,,,,,,4
+11199,All other crop farming,23,,12,,,,7
+112,Animal production and aquaculture,124,6,60,,8,6,44
+1121,Cattle ranching and farming,99,,45,,7,,37
+11211,"Beef cattle ranching and farming, including feedlots",38,,17,,3,,15
+11212,Dairy cattle and milk production,31,,16,,,,10
+1122,Hog and pig farming,3,,,,,,
+11221,Hog and pig farming,3,,,,,,
+1124,Sheep and goat farming,5,,4,,,,1
+1129,Other animal production,11,,9,,,,
+11292,Horses and other equine production,5,,,,,,
+11299,All other animal production,5,,,,,,
+113,Forestry and logging,67,,17,,4,,41
+1133,Logging,59,,13,,4,,39
+11331,Logging,59,,13,,4,,39
+114,"Fishing, hunting and trapping",23,,15,,,,4
+1141,Fishing,23,,15,,,,4
+11411,Fishing,23,,15,,,,4
+114111,Finfish fishing,10,,,,,,
+114112,Shellfish fishing,9,,5,,,,
+115,Support activities for agriculture and forestry,63,1,40,,,7,15
+1151,Support activities for crop production,50,,32,,,,11
+11511,Support activities for crop production,50,,32,,,,11
+115112,"Soil preparation, planting, and cultivating",19,,13,,,,
+115113,"Crop harvesting, primarily by machine",10,,,,,,
+115114,Postharvest crop activities (except cotton ginning),6,,3,,,,1
+115115,Farm labor contractors and crew leaders,9,,,,,,5
+1152,Support activities for animal production,8,,,,,,
+11521,Support activities for animal production,8,,,,,,
+1153,Support activities for forestry,4,,,,,,
+11531,Support activities for forestry,4,,,,,,
+,"Mining, quarrying, and oil and gas extraction",92,3,39,7,6,9,27
+211,Oil and gas extraction,5,,,,,,
+2111,Oil and gas extraction,5,,,,,,
+21112,Crude petroleum extraction,5,,,,,,
+212,Mining (except oil and gas),24,,,,,,
+2123,Nonmetallic mineral mining and quarrying,11,,,,,,
+21231,Stone mining and quarrying,4,,,,,,
+212312,Crushed and broken limestone mining and quarrying,3,,,,,,
+21232,"Sand, gravel, clay, and ceramic and refractory minerals mining and quarrying",6,,,,,,
+212321,Construction sand and gravel mining,6,,,,,,
+213,Support activities for mining,62,,30,5,,7,16
+2131,Support activities for mining,62,,30,5,,7,16
+21311,Support activities for mining,62,,30,5,,7,16
+213111,Drilling oil and gas wells,13,,3,,,3,5
+213112,Support activities for oil and gas operations,47,,25,,,4,11
+,Construction,1034,46,244,5,389,187,161
+,Construction,1034,46,244,5,389,187,161
+236,Construction of buildings,220,12,32,,96,46,34
+2361,Residential building construction,138,,,,65,32,20
+23611,Residential building construction,138,,,,65,32,20
+236115,New single-family housing construction (except for-sale builders),28,,,,14,3,8
+236116,New multifamily housing construction (except for-sale builders),6,,,,,3,
+236117,New housing for-sale builders,3,,,,1,,
+236118,Residential remodelers,64,,,,29,19,6
+2362,Nonresidential building construction,75,,21,,29,,12
+23621,Industrial building construction,14,,6,,3,,
+23622,Commercial and institutional building construction,58,,15,,25,,
+237,Heavy and civil engineering construction,158,,69,,16,24,41
+2371,Utility system construction,72,,,,,18,24
+23711,Water and sewer line and related structures construction,36,,,,,4,19
+23712,Oil and gas pipeline and related structures construction,7,,,,,3,
+23713,Power and communication line and related structures construction,29,,,,,11,
+2373,"Highway, street, and bridge construction",60,,36,,8,,11
+23731,"Highway, street, and bridge construction",60,,36,,8,,11
+238,Specialty trade contractors,606,27,134,,253,106,82
+2381,"Foundation, structure, and building exterior contractors",261,8,35,,153,34,29
+23811,Poured concrete foundation and structure contractors,34,,9,,,10,9
+238111,Residential poured concrete foundation and structure contractors,4,,,,,,
+238112,Nonresidential poured concrete foundation and structure contractors,6,,1,,,3,
+23812,Structural steel and precast concrete contractors,19,,5,,5,,5
+238122,Nonresidential structural steel and precast concrete contractors,5,,3,,,,
+23813,Framing contractors,39,,9,,22,,
+238131,Residential framing contractors,10,,1,,4,,
+238132,Nonresidential framing contractors,6,,6,,,,
+23814,Masonry contractors,26,3,4,,14,,3
+238141,Residential masonry contractors,4,,,,,,
+238142,Nonresidential masonry contractors,4,,,,,,
+23815,Glass and glazing contractors,3,,,,,,
+238152,Nonresidential glass and glazing contractors,2,,,,,,
+23816,Roofing contractors,120,,5,,96,13,2
+238161,Residential roofing contractors,26,,,,22,,1
+238162,Nonresidential roofing contractors,11,,,,7,,
+23817,Siding contractors,7,,,,5,,
+23819,"Other foundation, structure, and building exterior contractors",12,,,,,4,
+2382,Building equipment contractors,140,,32,,40,40,18
+23821,Electrical contractors and other wiring installation contractors,59,,,,17,,7
+238211,Residential electrical contractors and other wiring installation contractors,7,,,,,,1
+238212,Nonresidential electrical contractors and other wiring installation contractors,11,,,,3,,1
+23822,"Plumbing, heating, and air-conditioning contractors",75,,17,,23,22,8
+238221,"Residential plumbing, heating, and air-conditioning contractors",20,,7,,,9,
+238222,"Nonresidential plumbing, heating, and air-conditioning contractors",19,,,,9,3,3
+23829,Other building equipment contractors,6,,,,,,3
+238292,Other nonresidential building equipment contractors,2,,,,,,
+2383,Building finishing contractors,89,,15,,39,24,5
+23831,Drywall and insulation contractors,17,,,,10,4,
+238311,Residential drywall and insulation contractors,5,,,,,,
+238312,Nonresidential drywall and insulation contractors,3,,,,3,,
+23832,Painting and wall covering contractors,23,,,,16,3,
+238321,Residential painting and wall covering contractors,10,,,,6,,
+238322,Nonresidential painting and wall covering contractors,4,,,,4,,
+23833,Flooring contractors,15,,4,,1,6,
+238331,Residential flooring contractors,3,,,,,,
+23835,Finish carpentry contractors,19,,,,9,8,
+238351,Residential finish carpentry contractors,9,,,,4,5,
+23839,Other building finishing contractors,11,,6,,,,
+238391,Other residential building finishing contractors,1,,,,,,
+2389,Other specialty trade contractors,113,5,52,,19,7,30
+23891,Site preparation contractors,80,,39,,10,,26
+238911,Residential site preparation contractors,21,,17,,,,
+238912,Nonresidential site preparation contractors,16,,8,,4,,
+23899,All other specialty trade contractors,33,,13,,9,,4
+238991,All other residential specialty trade contractors,2,,,,,,
+238992,All other nonresidential specialty trade contractors,7,,4,,,,
+,Manufacturing,353,49,65,11,52,69,104
+,Manufacturing,353,49,65,11,52,69,104
+311,Food manufacturing,51,8,17,,,9,11
+3112,Grain and oilseed milling,5,,3,,,,
+31121,Flour milling and malt manufacturing,2,,,,,,
+311212,Rice milling,2,,,,,,
+3114,Fruit and vegetable preserving and specialty food manufacturing,6,,,,,,3
+31141,Frozen food manufacturing,3,,,,,,
+311412,Frozen specialty food manufacturing,3,,,,,,
+31142,"Fruit and vegetable canning, pickling, and drying",3,,,,,,
+311421,Fruit and vegetable canning,3,,,,,,
+3115,Dairy product manufacturing,4,,,,,,
+3116,Animal slaughtering and processing,22,4,9,,,3,5
+31161,Animal slaughtering and processing,22,4,9,,,,5
+311612,Meat processed from carcasses,6,,,,,,
+311615,Poultry processing,11,,5,,,,
+3118,Bakeries and tortilla manufacturing,5,,,,,,
+3119,Other food manufacturing,5,,,,,,
+312,Beverage and tobacco product manufacturing,8,,,,3,,
+3121,Beverage manufacturing,8,,,,3,,
+31211,Soft drink and ice manufacturing,3,,,,,,
+31212,Breweries,3,,,,,,
+313,Textile mills,5,,1,,,,2
+3132,Fabric mills,3,,,,,,
+3133,Textile and fabric finishing and fabric coating mills,2,,,,,,
+31331,Textile and fabric finishing mills,2,,,,,,
+315,Apparel manufacturing,1,,,,,,
+3159,Apparel accessories and other apparel manufacturing,1,,,,,,
+31599,Apparel accessories and other apparel manufacturing,1,,,,,,
+321,Wood product manufacturing,29,,7,,,3,15
+3211,Sawmills and wood preservation,14,,3,,,,8
+32111,Sawmills and wood preservation,14,,3,,,,8
+321113,Sawmills,13,,,,,,8
+321114,Wood preservation,1,,,,,,
+3212,"Veneer, plywood, and engineered wood product manufacturing",3,,,,,,
+32121,"Veneer, plywood, and engineered wood product manufacturing",3,,,,,,
+3219,Other wood product manufacturing,12,,4,,,,
+32191,Millwork,3,,,,,,
+32192,Wood container and pallet manufacturing,5,,,,,,
+32199,All other wood product manufacturing,4,,,,,,
+322,Paper manufacturing,13,,,,,3,7
+3221,"Pulp, paper, and paperboard mills",6,,,,,,3
+32212,Paper mills,5,,,,,,3
+3222,Converted paper product manufacturing,7,,,,,3,4
+32229,Other converted paper product manufacturing,3,,,,,,
+322291,Sanitary paper product manufacturing,1,,,,,,
+323,Printing and related support activities,8,,,,,,1
+3231,Printing and related support activities,8,,,,,,1
+32311,Printing,8,,,,,,1
+323111,Commercial printing (except screen and books),6,,,,,,1
+324,Petroleum and coal products manufacturing,7,,,,,3,
+3241,Petroleum and coal products manufacturing,7,,,,,3,
+32412,"Asphalt paving, roofing, and saturated materials manufacturing",7,,,,,3,
+325,Chemical manufacturing,17,5,1,1,3,3,4
+3251,Basic chemical manufacturing,3,,,,,,
+3253,"Pesticide, fertilizer, and other agricultural chemical manufacturing",4,,,,,,
+32531,Fertilizer and compost manufacturing,4,,,,,,
+3254,Pharmaceutical and medicine manufacturing,2,,,,,,
+32541,Pharmaceutical and medicine manufacturing,2,,,,,,
+325411,Medicinal and botanical manufacturing,1,,,,,,
+325413,In-vitro diagnostic substance manufacturing,1,,,,,,
+3255,"Paint, coating, and adhesive manufacturing",1,,1,,,,
+32551,Paint and coating manufacturing,1,,1,,,,
+3259,Other chemical product and preparation manufacturing,4,,,,,1,
+32599,All other chemical product and preparation manufacturing,4,,,,,1,
+325991,Custom compounding of purchased resins,1,,,,,1,
+326,Plastics and rubber products manufacturing,28,3,,,,10,10
+3261,Plastics product manufacturing,21,,,,,,
+32612,"Plastics pipe, pipe fitting, and unlaminated profile shape manufacturing",4,,,,,,
+32619,Other plastics product manufacturing,13,,,,,,
+3262,Rubber product manufacturing,7,,,,,,
+32621,Tire manufacturing,4,,,,,,
+326211,Tire manufacturing (except retreading),4,,,,,,
+327,Nonmetallic mineral product manufacturing,28,,11,,4,,9
+3273,Cement and concrete product manufacturing,24,,,,,,
+32732,Ready-mix concrete manufacturing,14,,,,,,
+32739,Other concrete product manufacturing,6,,,,,,
+331,Primary metal manufacturing,15,,,,,4,6
+3312,Steel product manufacturing from purchased steel,5,,,,,,
+33121,Iron and steel pipe and tube manufacturing from purchased steel,4,,,,,,
+33122,Rolling and drawing of purchased steel,1,,,,,,
+331221,Rolled steel shape manufacturing,1,,,,,,
+3315,Foundries,6,,,,,,
+332,Fabricated metal product manufacturing,46,11,5,3,10,4,13
+3321,Forging and stamping,5,,,,3,,
+33211,Forging and stamping,5,,,,3,,
+3323,Architectural and structural metals manufacturing,18,4,,,3,,7
+33231,Plate work and fabricated structural product manufacturing,10,,,,,,4
+332312,Fabricated structural metal manufacturing,7,,,,,,
+33232,Ornamental and architectural metal products manufacturing,8,,,,,,3
+332322,Sheet metal work manufacturing,5,,,,,,
+3325,Hardware manufacturing,1,,,,,,
+33251,Hardware manufacturing,1,,,,,,
+3327,"Machine shops; turned product; and screw, nut, and bolt manufacturing",5,,,,,,
+3328,"Coating, engraving, heat treating, and allied activities",7,,,,,,
+33281,"Coating, engraving, heat treating, and allied activities",7,,,,,,
+332812,"Metal coating, engraving (except jewelry and silverware), and allied services to manufacturers",5,,,,,,
+3329,Other fabricated metal product manufacturing,6,,,1,1,,
+333,Machinery manufacturing,21,3,,,4,5,7
+3331,"Agriculture, construction, and mining machinery manufacturing",4,,,,1,,
+33313,Mining and oil and gas field machinery manufacturing,1,,,,1,,
+333131,Mining machinery and equipment manufacturing,1,,,,1,,
+3332,Industrial machinery manufacturing,5,,,,,,
+33324,Industrial machinery manufacturing,5,,,,,,
+3334,"Ventilation, heating, air-conditioning, and commercial refrigeration equipment manufacturing",3,,,,,,
+33341,"Ventilation, heating, air-conditioning, and commercial refrigeration equipment manufacturing",3,,,,,,
+3336,"Engine, turbine, and power transmission equipment manufacturing",3,,,,,,
+33361,"Engine, turbine, and power transmission equipment manufacturing",3,,,,,,
+3339,Other general purpose machinery manufacturing,4,,,,,,
+33392,Material handling equipment manufacturing,4,,,,,,
+333923,"Overhead traveling crane, hoist, and monorail system manufacturing",4,,,,,,
+334,Computer and electronic product manufacturing,9,,,,,,
+3345,"Navigational, measuring, electromedical, and control instruments manufacturing",6,,,,,,
+33451,"Navigational, measuring, electromedical, and control instruments manufacturing",6,,,,,,
+334517,Irradiation apparatus manufacturing,2,,,,,,
+335,"Electrical equipment, appliance, and component manufacturing",5,,,,,,
+336,Transportation equipment manufacturing,45,6,5,,8,11,15
+3361,Motor vehicle manufacturing,4,,,,,,1
+33611,Automobile and light duty motor vehicle manufacturing,4,,,,,,1
+3362,Motor vehicle body and trailer manufacturing,5,,,,,,
+33621,Motor vehicle body and trailer manufacturing,5,,,,,,
+336211,Motor vehicle body manufacturing,3,,,,,,
+3363,Motor vehicle parts manufacturing,16,4,,,,6,3
+33636,Motor vehicle seating and interior trim manufacturing,1,,,,,,
+33637,Motor vehicle metal stamping,3,,,,,,3
+33639,Other motor vehicle parts manufacturing,5,,,,,,
+3364,Aerospace product and parts manufacturing,8,,2,,,,
+33641,Aerospace product and parts manufacturing,8,,2,,,,
+336413,Other aircraft parts and auxiliary equipment manufacturing,4,,,,,,
+3365,Railroad rolling stock manufacturing,1,,,,,1,
+33651,Railroad rolling stock manufacturing,1,,,,,1,
+3366,Ship and boat building,8,,,,,,5
+33661,Ship and boat building,8,,,,,,5
+3369,Other transportation equipment manufacturing,3,,,,,,3
+33699,Other transportation equipment manufacturing,3,,,,,,3
+337,Furniture and related product manufacturing,5,,,,,,
+3371,Household and institutional furniture and kitchen cabinet manufacturing,1,,,,,,
+33712,Household and institutional furniture manufacturing,1,,,,,,
+337127,Institutional furniture manufacturing,1,,,,,,
+339,Miscellaneous manufacturing,10,2,4,,,,
+3391,Medical equipment and supplies manufacturing,4,,,,,,
+33911,Medical equipment and supplies manufacturing,4,,,,,,
+3399,Other miscellaneous manufacturing,6,1,,,,,
+33995,Sign manufacturing,5,,,,,,
+33999,All other miscellaneous manufacturing,1,1,,,,,
+,Service providing,,,,,,,
+,"Trade, transportation, and utilities",1298,,756,,104,108,
+,Utilities,30,,7,,5,15,
+221,Utilities,30,,7,,5,15,
+2211,"Electric power generation, transmission and distribution",19,,,,5,10,
+22111,Electric power generation,5,,,,,,
+221115,Wind electric power generation,3,,,,,,
+22112,"Electric power transmission, control, and distribution",14,,,,,,
+,Wholesale trade,145,9,65,7,22,14,28
+423,"Merchant wholesalers, durable goods",82,,29,,,,
+4231,Motor vehicle and motor vehicle parts and supplies merchant wholesalers,13,,3,,,,
+42311,Automobile and other motor vehicle merchant wholesalers,5,,,,,,
+42312,Motor vehicle supplies and new parts merchant wholesalers,3,,,,,,
+42314,Motor vehicle parts (used) merchant wholesalers,5,,,,,,
+4233,Lumber and other construction materials merchant wholesalers,16,,8,,,,
+42331,"Lumber, plywood, millwork, and wood panel merchant wholesalers",7,,4,,,,
+42332,"Brick, stone, and related construction material merchant wholesalers",6,,,,,,
+4234,Professional and commercial equipment and supplies merchant wholesalers,6,,1,,,,
+42342,Office equipment merchant wholesalers,3,,1,,,,
+4235,Metal and mineral (except petroleum) merchant wholesalers,5,,,,,,
+42351,Metal service centers and other metal merchant wholesalers,5,,,,,,
+4237,"Hardware, and plumbing and heating equipment and supplies merchant wholesalers",4,,,,,,
+42371,Hardware merchant wholesalers,1,,,,,,
+4238,"Machinery, equipment, and supplies merchant wholesalers",18,,6,,,,
+42382,Farm and garden machinery and equipment merchant wholesalers,6,,4,,,,
+42384,Industrial supplies merchant wholesalers,5,,,,,,
+4239,Miscellaneous durable goods merchant wholesalers,14,,4,,,,
+42391,Sporting and recreational goods and supplies merchant wholesalers,1,,,,,,
+42393,Recyclable material merchant wholesalers,11,,4,,,,
+,Retail trade,258,104,65,3,40,34,10
+441,Motor vehicle and parts dealers,57,15,24,,8,5,
+4411,Automobile dealers,26,9,12,,5,,
+44111,New car dealers,10,,5,,,,
+44112,Used car dealers,10,,4,,,,
+4412,Other motor vehicle dealers,7,,4,,,,
+44122,"Motorcycle, boat, and other motor vehicle dealers",7,,4,,,,
+441222,Boat dealers,2,,,,,,
+4413,"Automotive parts, accessories, and tire retailers",23,,8,,3,,
+44133,Automotive parts and accessories retailers,16,,7,,3,,
+44134,Tire dealers,5,,,,,,
+444,Building material and garden equipment and supplies dealers,31,,13,,11,,4
+4441,Building material and supplies dealers,25,,8,,,,4
+44411,Home centers,13,,,,,,1
+44414,Hardware retailers,3,,,,,,
+44418,Other building material dealers,9,,4,,,,3
+4442,Lawn and garden equipment and supplies retailers,6,,,,,,
+445,Food and beverage retailers,47,21,5,,8,10,
+4451,Grocery and convenience retailers,35,14,,,5,10,
+44511,Supermarkets and other grocery retailers (except convenience retailers),19,5,,,5,5,
+44513,Convenience retailers and vending machine operators,16,9,,,,,
+445131,Convenience retailers,13,8,,,,,
+4452,Specialty food retailers,4,,,,,,
+44524,Meat retailers,1,,,,,,
+4453,"Beer, wine, and liquor retailers",8,,,,,,
+44532,"Beer, wine, and liquor retailers",8,,,,,,
+449,"Furniture, home furnishings, electronics, and appliance retailers",5,,,,,,
+4491,Furniture and home furnishings retailers,4,,,,,,
+44911,Furniture retailers,1,,,,,,
+44912,Home furnishings retailers,3,,,,,,
+449121,Floor covering retailers,1,,,,,,
+4492,Electronics and appliance retailers,1,,,,,,
+44921,Electronics and appliance retailers,1,,,,,,
+455,General merchandise retailers,29,11,6,,4,6,
+4551,Department stores,6,,,,1,,
+45511,Department stores,6,,,,1,,
+4552,"Warehouse clubs, supercenters, and other general merchandise retailers",22,,,,3,5,
+45521,"Warehouse clubs, supercenters, and other general merchandise retailers",22,,,,3,5,
+455211,Warehouse clubs and supercenters,7,,,,,3,
+456,Health and personal care retailers,6,4,,,,,
+4561,Health and personal care retailers,6,4,,,,,
+45611,Pharmacies and drug retailers,3,,,,,,
+45612,"Cosmetics, beauty supplies, and perfume retailers",3,,,,,,
+457,Gasoline stations and fuel dealers,45,31,6,,,6,
+4571,Gasoline stations,36,27,3,,,,
+4572,Fuel dealers,9,4,3,,,,
+45721,Fuel dealers,9,4,3,,,,
+458,"Clothing, clothing accessories, shoe, and jewelry retailers",9,6,,,,,
+4581,Clothing and clothing accessories retailers,4,,,,,,
+45811,Clothing and clothing accessories retailers,4,,,,,,
+4583,"Jewelry, luggage, and leather goods retailers",5,,,,,,
+459,"Sporting goods, hobby, musical instrument, book, and miscellaneous retailers",28,13,7,,4,4,
+4595,Used merchandise retailers,12,3,4,,,,
+45951,Used merchandise retailers,12,3,4,,,,
+4599,Other miscellaneous retailers,10,8,,,,,
+,Transportation and warehousing,865,75,619,,37,45,72
+481,Air transportation,22,,18,,,,
+4811,Scheduled air transportation,6,,,,,,
+48111,Scheduled air transportation,6,,,,,,
+4812,Nonscheduled air transportation,14,,,,,,
+48121,Nonscheduled air transportation,14,,,,,,
+481211,Nonscheduled chartered passenger air transportation,10,,,,,,
+481212,Nonscheduled chartered freight air transportation,1,,,,,,
+482,Rail transportation,9,,8,,,,1
+4821,Rail transportation,9,,8,,,,1
+48211,Rail transportation,9,,8,,,,1
+482111,Line-haul railroads,7,,6,,,,1
+483,Water transportation,11,,,,,,
+4831,"Deep sea, coastal, and great lakes water transportation",8,,,,,,
+48311,"Deep sea, coastal, and great lakes water transportation",8,,,,,,
+483111,Deep sea freight transportation,4,,,,,,
+4832,Inland water transportation,3,,,,,,
+48321,Inland water transportation,3,,,,,,
+483211,Inland water freight transportation,2,,,,,,
+484,Truck transportation,577,28,438,,25,29,46
+4841,General freight trucking,404,,304,,17,18,35
+48411,"General freight trucking, local",63,,44,,4,,10
+48412,"General freight trucking, long-distance",269,,202,,10,12,23
+484121,"General freight trucking, long-distance, truckload",155,,113,,6,3,18
+484122,"General freight trucking, long-distance, less than truckload",21,,15,,,,3
+4842,Specialized freight trucking,140,,108,,8,5,10
+48421,Used household and office goods moving,8,,5,,,,
+48422,"Specialized freight (except used goods) trucking, local",69,,56,,5,,5
+48423,"Specialized freight (except used goods) trucking, long-distance",47,,36,,3,,
+485,Transit and ground passenger transportation,57,13,40,,,,
+4853,Taxi and limousine service,33,,20,,,,
+48531,Taxi and ridesharing services,33,,20,,,,
+4854,School and employee bus transportation,6,,,,,,
+48541,School and employee bus transportation,6,,,,,,
+4859,Other transit and ground passenger transportation,13,,10,,,,
+48599,Other transit and ground passenger transportation,13,,10,,,,
+485991,Special needs transportation,9,,7,,,,
+486,Pipeline transportation,5,,,,,,
+4861,Pipeline transportation of crude oil,3,,,,,,
+48611,Pipeline transportation of crude oil,3,,,,,,
+487,Scenic and sightseeing transportation,8,,8,,,,
+4872,"Scenic and sightseeing transportation, water",1,,1,,,,
+48721,"Scenic and sightseeing transportation, water",1,,1,,,,
+4879,"Scenic and sightseeing transportation, other",7,,7,,,,
+48799,"Scenic and sightseeing transportation, other",7,,7,,,,
+488,Support activities for transportation,87,11,51,,,4,16
+4881,Support activities for air transportation,9,,,,,,
+4882,Support activities for rail transportation,3,,,,,,
+48821,Support activities for rail transportation,3,,,,,,
+4883,Support activities for water transportation,13,,5,,,,4
+48831,Port and harbor operations,1,,,,,,
+48832,Marine cargo handling,7,,,,,,
+48833,Navigational services to shipping,5,,,,,,1
+4884,Support activities for road transportation,50,9,30,,,,9
+48841,Motor vehicle towing,46,9,26,,,,9
+48849,Other support activities for road transportation,4,,4,,,,
+4885,Freight transportation arrangement,9,,5,,,,
+48851,Freight transportation arrangement,9,,5,,,,
+4889,Other support activities for transportation,3,,,,,,
+48899,Other support activities for transportation,3,,,,,,
+492,Couriers and messengers,56,12,35,,,4,
+4921,Couriers and express delivery services,34,7,21,,,,
+49211,Couriers and express delivery services,34,7,21,,,,
+4922,Local messengers and local delivery,22,5,14,,,,
+49221,Local messengers and local delivery,22,5,14,,,,
+493,Warehousing and storage,32,10,7,,,5,6
+4931,Warehousing and storage,32,10,7,,,5,6
+49311,General warehousing and storage,23,8,,,,,
+49313,Farm product warehousing and storage,3,,,,,,
+49319,Other warehousing and storage,3,,,,,,
+,Information,28,6,9,,3,10,
+,Information,28,6,9,,3,10,
+512,Motion picture and sound recording industries,5,,,,,,
+5121,Motion picture and video industries,5,,,,,,
+51211,Motion picture and video production,3,,,,,,
+517,Telecommunications,17,,4,,,,
+5171,Wired and wireless telecommunications (except satellite),13,,,,,,
+51711,Wired and wireless telecommunications carriers (except satellite),13,,,,,,
+517111,Wired telecommunications carriers,8,,,,,,
+517112,Wireless telecommunications carriers (except satellite),3,,,,,,
+,Financial activities,91,26,24,,18,,
+,Finance and insurance,18,6,3,,6,,
+522,Credit intermediation and related activities,8,3,,,3,,
+5221,Depository credit intermediation,5,,,,,,
+52211,Commercial banking,4,,,,,,
+5223,Activities related to credit intermediation,3,,,,,,
+52232,"Financial transactions processing, reserve, and clearinghouse activities",3,,,,,,
+523,"Securities, commodity contracts, and other financial investments and related activities",3,,,,,,
+524,Insurance carriers and related activities,7,,,,3,,
+,Real estate and rental and leasing,73,20,21,,12,14,6
+531,Real estate,47,16,8,,,9,
+5311,Lessors of real estate,21,7,,,,5,
+53111,Lessors of residential buildings and dwellings,11,4,,,,,
+53112,Lessors of nonresidential buildings (except miniwarehouses),2,,,,,,
+53113,Lessors of miniwarehouses and self-storage units,3,,,,,,
+53119,Lessors of other real estate property,5,,,,,,
+5312,Offices of real estate agents and brokers,6,,,,,,
+53121,Offices of real estate agents and brokers,6,,,,,,
+5313,Activities related to real estate,20,,5,,,4,
+53131,Real estate property managers,16,,4,,,4,
+531311,Residential property managers,12,,,,,,
+531312,Nonresidential property managers,4,,,,,,
+53132,Offices of real estate appraisers,1,,,,,,
+53139,Other activities related to real estate,3,,1,,,,
+532,Rental and leasing services,26,4,13,,,5,
+5321,Automotive equipment rental and leasing,11,,7,,,,
+53211,Passenger car rental and leasing,7,,,,,,
+532111,Passenger car rental,7,,,,,,
+53212,"Truck, utility trailer, and RV (recreational vehicle) rental and leasing",4,,,,,,
+5322,Consumer goods rental,5,,,,,,
+53228,Other consumer goods rental,5,,,,,,
+5324,Commercial and industrial machinery and equipment rental and leasing,10,,,,,,
+53241,"Construction, transportation, mining, and forestry machinery and equipment rental and leasing",6,,,,,,
+532412,"Construction, mining, and forestry machinery and equipment rental and leasing",5,,,,,,
+53249,Other Commercial and Industrial Machinery and Equipment Rental and Leasing,4,,,,,,
+,Professional and business services,,67,200,,,,
+,"Professional, scientific, and technical services",65,14,23,,10,14,
+541,"Professional, scientific, and technical services",65,14,23,,10,14,
+5411,Legal services,6,5,,,,,
+54111,Offices of lawyers,4,,,,,,
+5413,"Architectural, engineering, and related services",20,,11,,4,4,
+54132,Landscape architectural services,3,,,,,,
+54133,Engineering services,8,,4,,,,
+54137,Surveying and mapping (except geophysical) services,5,,,,,,
+54138,Testing laboratories and services,2,,,,,,
+5415,Computer systems design and related services,5,,,,,,
+54151,Computer systems design and related services,5,,,,,,
+5416,"Management, scientific, and technical consulting services",14,3,6,,,,
+54161,Management consulting services,10,,4,,,,
+541614,"Process, physical distribution, and logistics consulting services",6,,4,,,,
+5418,"Advertising, public relations, and related services",5,,,,,,
+54181,Advertising agencies,1,,,,,,
+5419,"Other professional, scientific, and technical services",9,,,,,3,
+,Administrative and support and waste management and remediation services,495,53,177,,99,72,91
+561,Administrative and support services,407,,121,,90,67,77
+5612,Facilities support services,6,,,,,,
+56121,Facilities support services,6,,,,,,
+5613,Employment services,29,,14,,,9,
+5616,Investigation and security services,55,,11,,7,5,
+56161,"Investigation, guard, and armored car services",48,,,,4,5,
+561612,Security guards and patrol services,47,,,,4,5,
+561613,Armored car services,1,,,,,,
+56162,Security systems services,7,,,,3,,
+561621,Security systems services (except locksmiths),2,,,,,,
+561622,Locksmiths,3,,,,,,
+5617,Services to buildings and dwellings,295,,81,,80,,69
+56171,Exterminating and pest control services,9,,4,,,,
+56172,Janitorial services,23,,5,,,,
+56173,Landscaping services,246,,69,,69,,66
+56174,Carpet and upholstery cleaning services,1,,,,,,
+56179,Other services to buildings and dwellings,16,,3,,6,,
+5619,Other support services,14,,11,,,,
+562,Waste management and remediation services,88,,56,,9,5,14
+5621,Waste collection,41,,30,,,,
+56211,Waste collection,41,,30,,,,
+562111,Solid waste collection,32,,23,,,,
+562112,Hazardous waste collection,4,,,,,,
+5622,Waste treatment and disposal,9,,7,,,,
+56221,Waste treatment and disposal,9,,7,,,,
+562211,Hazardous waste treatment and disposal,6,,,,,,
+5629,Remediation and other waste management services,35,,16,,,,8
+56291,Remediation services,13,,,,,,5
+56292,Materials recovery facilities,8,,4,,,,
+56299,All other waste management services,14,,12,,,,
+562991,Septic tank and related services,10,,10,,,,
+,Educational and health services,160,43,62,,17,,
+,Educational services,40,7,22,,6,,
+611,Educational services,40,7,22,,6,,
+6111,Elementary and secondary schools,12,4,,,6,,
+61111,Elementary and secondary schools,12,4,,,6,,
+6113,"Colleges, universities, and professional schools",4,,,,,,
+61131,"Colleges, universities, and professional schools",4,,,,,,
+6115,Technical and trade schools,16,,,,,,
+61151,Technical and trade schools,16,,,,,,
+611512,Flight training,14,,,,,,
+6116,Other schools and instruction,6,,,,,,
+61162,Sports and recreation instruction,5,,,,,,
+61169,All other schools and instruction,1,,,,,,
+,Health care and social assistance,120,36,40,,11,29,
+621,Ambulatory health care services,46,,19,,5,8,
+6211,Offices of physicians,8,,3,,,,
+62111,Offices of physicians,8,,3,,,,
+6212,Offices of dentists,2,,,,,,
+62121,Offices of dentists,2,,,,,,
+6213,Offices of other health practitioners,8,,,,,,
+62133,Offices of mental health practitioners (except physicians),5,,,,,,
+6216,Home health care services,14,,5,,,4,
+62161,Home health care services,14,,5,,,4,
+6219,Other ambulatory health care services,11,,8,,,,
+62191,Ambulance services,11,,8,,,,
+622,Hospitals,20,11,4,,,,
+6221,General medical and surgical hospitals,19,11,4,,,,
+62211,General medical and surgical hospitals,19,11,4,,,,
+6222,Psychiatric and substance abuse hospitals,1,,,,,,
+62221,Psychiatric and substance abuse hospitals,1,,,,,,
+623,Nursing and residential care facilities,29,11,,,3,11,
+6231,Nursing care facilities (skilled nursing facilities),9,,,,,3,
+62311,Nursing care facilities (skilled nursing facilities),9,,,,,3,
+6232,"Residential intellectual and developmental disability, mental health, and substance abuse facilities",7,3,,,,4,
+6233,Continuing care retirement communities and assisted living facilities for the elderly,4,,,,,,
+62331,Continuing care retirement communities and assisted living facilities for the elderly,4,,,,,,
+6239,Other residential care facilities,7,2,,,,,
+62399,Other residential care facilities,7,2,,,,,
+624,Social assistance,22,,11,,,,
+6241,Individual and family services,9,,4,,,,
+62411,Child and youth services,1,,,,,,
+62412,Services for the elderly and persons with disabilities,7,,,,,,
+6242,"Community food and housing, and emergency and other relief services",4,,,,,,
+6243,Vocational rehabilitation services,5,,,,,,
+62431,Vocational rehabilitation services,5,,,,,,
+6244,Child care services,4,,,,,,
+62441,Child care services,4,,,,,,
+,Leisure and hospitality,273,105,53,,38,60,17
+,"Arts, entertainment, and recreation",88,19,33,,11,12,13
+711,"Performing arts, spectator sports, and related industries",36,5,18,,,,
+7111,Performing arts companies,10,,,,,,
+7112,Spectator sports,17,,10,,,,
+71121,Spectator sports,17,,10,,,,
+711212,Racetracks,5,,,,,,
+712,"Museums, historical sites, and similar institutions",6,,4,,,,
+7121,"Museums, historical sites, and similar institutions",6,,4,,,,
+71211,Museums,4,,,,,,
+713,"Amusement, gambling, and recreation industries",46,14,11,,,,7
+7131,Amusement parks and arcades,4,,,,,,
+71311,Amusement and theme parks,3,,,,,,
+7132,Gambling industries,6,,,,,,
+7139,Other amusement and recreation industries,36,,,,,,7
+71391,Golf courses and country clubs,16,,,,,,
+71394,Fitness and recreational sports centers,4,,,,,,
+71399,All other amusement and recreation industries,9,,,,,,4
+,Accommodation and food services,185,86,20,,27,48,4
+721,Accommodation,41,14,5,,7,14,1
+7211,Traveler accommodation,34,,,,,,
+72111,Hotels (except casino hotels) and motels,31,,,,,,
+72112,Casino hotels,3,,,,,,
+7212,RV (recreational vehicle) parks and recreational camps,7,,,,,,1
+72121,RV (recreational vehicle) parks and recreational camps,7,,,,,,1
+721211,RV (recreational vehicle) parks and campgrounds,4,,,,,,
+721214,Recreational and vacation camps (except campgrounds),3,,,,,,
+722,Food services and drinking places,144,72,15,,20,34,3
+7223,Special food services,18,7,5,,,4,
+72231,Food service contractors,6,,,,,,
+72232,Caterers,4,,,,,,
+72233,Mobile food services,8,4,3,,,1,
+7224,Drinking places (alcoholic beverages),18,14,,,,4,
+72241,Drinking places (alcoholic beverages),18,14,,,,4,
+7225,Restaurants and other eating places,108,51,10,,,26,
+72251,Restaurants and other eating places,108,51,10,,,26,
+722511,Full-service restaurants,47,20,3,,,14,
+722513,Limited-service restaurants,56,29,,,,11,
+722515,Snack and nonalcoholic beverage bars,1,,,,,,
+,Other Services (except Public Administration),236,44,68,12,30,42,40
+,Other Services (except Public Administration),236,44,68,12,30,42,40
+811,Repair and maintenance,146,20,32,11,17,29,37
+8111,Automotive repair and maintenance,99,18,21,7,7,22,24
+81111,Automotive mechanical and electrical repair and maintenance,57,9,11,5,4,9,19
+811111,General automotive repair,51,9,,5,,9,16
+811114,Specialized automotive repair,5,,,,,,
+81112,"Automotive body, paint, interior, and glass repair",15,4,5,,,4,
+811121,"Automotive body, paint, and interior repair and maintenance",11,4,,,,,
+811122,Automotive glass replacement shops,4,,,,,,
+81119,Other automotive repair and maintenance,20,3,5,1,,7,
+811191,Automotive oil change and lubrication shops,5,,,,,,
+811192,Car washes,7,,3,,,,
+8112,Electronic and precision equipment repair and maintenance,3,,,,,,
+81121,Electronic and precision equipment repair and maintenance,3,,,,,,
+8113,Commercial and industrial machinery and equipment (except automotive and electronic) repair and maintenance,30,,7,3,7,,10
+81131,Commercial and industrial machinery and equipment (except automotive and electronic) repair and maintenance,30,,7,3,7,,10
+8114,Personal and household goods repair and maintenance,13,,,1,,3,3
+81141,Home and garden equipment and appliance repair and maintenance,4,,,,,,
+81149,Other personal and household goods repair and maintenance,9,,,1,,,
+812,Personal and laundry services,48,18,16,1,,10,
+8121,Personal care services,16,9,,1,,,
+81211,"Hair, nail, and skin care services",13,8,,,,,
+812113,Nail salons,7,,,,,,
+81219,Other personal care services,3,,,1,,,
+8122,Death care services,12,,8,,,,
+81221,Funeral homes and funeral services,9,,,,,,
+81222,Cemeteries and crematories,3,,,,,,
+8123,Drycleaning and laundry services,6,,,,,,
+81231,Coin-operated laundries and drycleaners,3,,,,,,
+8129,Other personal services,14,,,,,5,
+81299,All other personal services,7,,,,,,
+813,"Religious, grantmaking, civic, professional, and similar organizations",42,6,20,,,3,
+8131,Religious organizations,21,3,9,,,,
+81311,Religious organizations,21,3,9,,,,
+8134,Civic and social organizations,13,3,5,,,,
+81341,Civic and social organizations,13,3,5,,,,
+8139,"Business, professional, labor, political, and similar organizations",4,,,,,,
+,Government,454,138,179,18,47,34,32
+,Federal Government,84,20,44,,9,5,4
+,Service providing,,,,,,,
+,"Trade, transportation, and utilities",23,4,15,,,,
+,Transportation and warehousing,23,4,15,,,,
+491,Postal service,23,4,15,,,,
+4911,Postal service,23,4,15,,,,
+49111,Postal service,23,4,15,,,,
+,Educational and health services,3,1,,,,,
+,Health care and social assistance,3,1,,,,,
+622,Hospitals,3,1,,,,,
+6221,General medical and surgical hospitals,3,1,,,,,
+62211,General medical and surgical hospitals,3,1,,,,,
+,Leisure and hospitality,2,,,,,,
+,"Arts, entertainment, and recreation",2,,,,,,
+712,"Museums, historical sites, and similar institutions",2,,,,,,
+7121,"Museums, historical sites, and similar institutions",2,,,,,,
+71219,Nature parks and other similar institutions,2,,,,,,
+,Public administration,53,15,27,,6,,
+,Public administration,53,15,27,,6,,
+922,"Justice, public order, and safety activities",4,1,,,,,
+9221,"Justice, public order, and safety activities",4,1,,,,,
+926,Administration of economic programs,1,,,,,,
+9261,Administration of economic programs,1,,,,,,
+92612,Regulation and administration of transportation programs,1,,,,,,
+928,National security and international affairs,46,14,,,3,,
+9281,National security and international affairs,46,14,,,3,,
+92811,National security,46,14,,,3,,
+,State Government,90,24,43,2,8,6,5
+,Goods producing,,,,,,,
+,Construction,11,,,,,,
+,Construction,11,,,,,,
+237,Heavy and civil engineering construction,11,,,,,,
+2373,"Highway, street, and bridge construction",11,,,,,,
+23731,"Highway, street, and bridge construction",11,,,,,,
+,Manufacturing,1,,,1,,,
+,Manufacturing,1,,,1,,,
+332,Fabricated metal product manufacturing,1,,,1,,,
+3329,Other fabricated metal product manufacturing,1,,,1,,,
+33299,All other fabricated metal product manufacturing,1,,,1,,,
+,Service providing,,,,,,,
+,"Trade, transportation, and utilities",3,,,,,,
+,Transportation and warehousing,3,,,,,,
+,Educational and health services,16,5,,,,,
+,Educational services,13,5,3,,5,,
+611,Educational services,13,5,3,,5,,
+6111,Elementary and secondary schools,3,,,,,,
+61111,Elementary and secondary schools,3,,,,,,
+6113,"Colleges, universities, and professional schools",9,,,,,,
+61131,"Colleges, universities, and professional schools",9,,,,,,
+6114,Business schools and computer and management training,1,,,,,,
+,Health care and social assistance,3,,,,,,
+624,Social assistance,1,,,,,,
+6242,"Community food and housing, and emergency and other relief services",1,,,,,,
+62421,Community food services,1,,,,,,
+,Leisure and hospitality,4,,,,,,
+,"Arts, entertainment, and recreation",4,,,,,,
+712,"Museums, historical sites, and similar institutions",4,,,,,,
+7121,"Museums, historical sites, and similar institutions",4,,,,,,
+71219,Nature parks and other similar institutions,4,,,,,,
+,Other Services (except Public Administration),1,,1,,,,
+,Other Services (except Public Administration),1,,1,,,,
+811,Repair and maintenance,1,,1,,,,
+8111,Automotive repair and maintenance,1,,1,,,,
+81111,Automotive mechanical and electrical repair and maintenance,1,,1,,,,
+811111,General automotive repair,1,,1,,,,
+,Public administration,52,17,24,1,,6,
+,Public administration,52,17,24,1,,6,
+922,"Justice, public order, and safety activities",34,13,16,,,,
+9221,"Justice, public order, and safety activities",34,13,16,,,,
+92212,Police protection,24,8,,,,,
+92214,Correctional institutions,8,3,,,,,
+923,Administration of human resource programs,3,,1,,,,
+9231,Administration of human resource programs,3,,1,,,,
+924,Administration of environmental quality programs,6,,,,,3,
+9241,Administration of environmental quality programs,6,,,,,3,
+92412,Administration of conservation programs,6,,,,,3,
+926,Administration of economic programs,5,,,,,,
+9261,Administration of economic programs,5,,,,,,
+92612,Regulation and administration of transportation programs,4,,,,,,
+92614,Regulation of agricultural marketing and commodities,1,,,,,,
+,Local Government,277,92,91,,30,23,23
+,Goods producing,,,,,,,
+,Construction,18,,10,,,,3
+,Construction,18,,10,,,,3
+,Service providing,,,,,,,
+,"Trade, transportation, and utilities",18,,,,,3,
+,Utilities,13,,,,,3,3
+221,Utilities,13,,,,,3,3
+,Transportation and warehousing,5,,,,,,
+485,Transit and ground passenger transportation,4,,,,,,
+488,Support activities for transportation,1,,,,,,
+4884,Support activities for road transportation,1,,,,,,
+48849,Other support activities for road transportation,1,,,,,,
+,Information,1,1,,,,,
+,Information,1,1,,,,,
+519,"Web search portals, libraries, archives, and other information services",1,1,,,,,
+5192,"Web search portals, libraries, archives, and other information services",1,1,,,,,
+51921,Libraries and archives,1,1,,,,,
+,Professional and business services,,,9,,,,4
+,Administrative and support and waste management and remediation services,16,,9,,,,4
+,Educational and health services,46,,14,,,,3
+,Educational services,34,9,6,,11,5,3
+611,Educational services,34,9,6,,11,5,3
+6111,Elementary and secondary schools,32,7,6,,11,5,3
+61111,Elementary and secondary schools,32,7,6,,11,5,3
+6112,Junior colleges,2,2,,,,,
+61121,Junior colleges,2,2,,,,,
+,Health care and social assistance,12,,8,,,,
+624,Social assistance,5,,,,,,
+6241,Individual and family services,5,,,,,,
+62412,Services for the elderly and persons with disabilities,1,,,,,,
+,Leisure and hospitality,,,,,,,
+,"Arts, entertainment, and recreation",4,,,,,,
+712,"Museums, historical sites, and similar institutions",2,,,,,,
+7121,"Museums, historical sites, and similar institutions",2,,,,,,
+71219,Nature parks and other similar institutions,2,,,,,,
+,Public administration,170,70,52,,12,12,7
+,Public administration,170,70,52,,12,12,7
+921,"Executive, legislative, and other general government support",7,,3,,,,
+9211,"Executive, legislative, and other general government support",7,,3,,,,
+922,"Justice, public order, and safety activities",152,66,46,,,9,
+9221,"Justice, public order, and safety activities",152,66,46,,,9,
+92211,Courts,3,,,,,,
+92212,Police protection,109,59,35,,,5,
+92214,Correctional institutions,1,1,,,,,
+92216,Fire protection,36,,11,,,,
+923,Administration of human resource programs,4,,,,,,
+9231,Administration of human resource programs,4,,,,,,
+924,Administration of environmental quality programs,4,1,,,,,
+9241,Administration of environmental quality programs,4,1,,,,,

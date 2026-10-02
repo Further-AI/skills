@@ -1,0 +1,91 @@
+industry,naics_2017,hours_worked_millions,fatal_rate_per_100k_fte,margin_of_error
+Private industry,,257200,3.6,0.02
+Goods producing,"11, 21, 23, 31, 32, 33",,,
+Natural resources and mining,"11, 21",5700,19.3,1.4
+"Agriculture, forestry, fishing and hunting",11,4400,20.9,1.68
+Crop production,111,2400,14.9,1.51
+Animal production and aquaculture,112,1500,16.2,2.15
+Logging,1133,200,73.5,19.37
+"Fishing, hunting, and trapping",114,100,72.6,26.62
+Support activities for agriculture and forestry,115,300,45.7,8.88
+"Mining, quarrying, and oil and gas extraction",21,1300,13.8,2.72
+Oil and gas extraction,211,200,6.4,1.57
+Mining (except oil and gas),212,300,14.5,2.8
+Nonmetallic mineral mining and quarrying,2123,200,11.9,2.51
+Support activities for mining,213,800,14.6,4.32
+Construction,23,22500,9.2,0.22
+Manufacturing,"31, 32, 33",29900,2.4,0.05
+Food manufacturing,311,3300,3.1,0.22
+"Animal food, grain and oilseed milling","3111, 3112",300,4.5,0.75
+Animal slaughtering and processing,3116,900,4.9,0.78
+Wood product manufacturing,321,800,7.7,1.12
+Chemical manufacturing,325,3000,1.1,0.07
+Plastics and rubber products manufacturing,326,800,6.9,0.73
+Nonmetallic mineral product manufacturing,327,700,7.7,1.03
+"Cement, concrete, lime, and gypsum product manufacturing","3273, 3274",300,16.9,3.17
+Primary metal manufacturing,331,1000,3.1,0.34
+Fabricated metal product manufacturing,332,2100,4.4,0.31
+Machinery manufacturing,333,2700,1.5,0.11
+Transportation equipment manufacturing,336,5300,1.7,0.1
+Service providing,"22, 42, 44, 45, 48, 49, 81, 99",,,
+"Trade, transportation, and utilities","42, 44, 45, 48, 49, 22",51300,5.1,0.07
+Wholesale trade,42,6300,4.6,0.19
+"Merchant wholesalers, durable goods",423,2900,5.7,0.33
+"Machinery, equipment, and supplies merchant wholesalers",4238,700,5.5,0.67
+Recyclable material merchant wholesalers,42393,200,14.6,3.76
+Retail trade,"44, 45",28300,1.8,0.04
+Automobile dealers,4411,2600,2,0.14
+Gasoline stations,4571,900,7.9,0.79
+Transportation and warehousing,"48, 49",14200,12.2,0.35
+Air transportation,481,1400,3.1,0.28
+Rail transportation,482,400,4.7,0.82
+Water transportation,483,200,12.8,3.24
+Truck transportation,484,4500,25.9,1.44
+Transit and ground passenger transportation,485,1700,6.8,0.47
+Bus service and urban transit,485 except 4853,500,9,1.17
+Taxi and limousine service,4853,1100,5.8,0.51
+Support activities for transportation,488,1500,11.4,0.91
+Couriers and messengers,492,2300,4.9,0.33
+Warehousing and storage,493,2100,3,0.21
+Utilities,22,2500,2.3,0.14
+Information,51,5100,1.1,0.06
+Financial activities,"52, 53",20600,0.9,0.02
+Finance and insurance,52,15100,0.2,0.01
+Real estate and rental and leasing,53,5500,2.7,0.12
+Real estate,531,4800,2,0.09
+Rental and leasing services,532,700,7.6,0.92
+Professional and business services,"54, 56",,,
+"Professional, scientific, and technical services",54,26000,0.5,0.01
+"Architectural, engineering, and related services",5413,3500,1.2,0.07
+"Management, administrative, and waste services","55, 56",13200,7.5,0.21
+Employment services,5613,1400,4,0.29
+Investigation and security services,5616,1700,6.3,0.49
+Services to buildings and dwellings (except landscaping services),"5617, except 56173",3100,3.2,0.17
+Landscaping services,56173,2600,18.5,1.28
+Waste management and remediation services,562,1100,16.7,1.78
+Educational and health services,"61, 62",47600,0.7,0.01
+Educational services,61,9300,0.8,0.03
+Health care and social assistance,62,38300,0.6,0.01
+Ambulatory health care services,621,16200,0.6,0.01
+Hospitals,622,12600,0.3,0.01
+Nursing and residential care facilities,623,4100,1.4,0.07
+Social assistance,624,5400,0.8,0.03
+Leisure and hospitality,"71, 72",22000,2.4,0.06
+"Arts, entertainment, and recreation",71,5000,3.4,0.16
+"Performing arts, spectator sports, and related industries",711,1500,4.5,0.36
+"Amusement, gambling, and recreation industries (except bowling centers)","713, except 71395",3100,2.7,0.16
+Accommodation and food services,72,17000,2.2,0.05
+Accommodation,721,2200,3.7,0.29
+Traveler accommodation,7211,2000,3.3,0.27
+Food services and drinking places,722,14800,1.9,0.05
+Restaurants and other food services,"722, except 7224",14500,1.7,0.04
+Drinking places (alcoholic beverages),7224,300,10.9,1.71
+"Other services, except public administration",81,13300,3.3,0.09
+Repair and maintenance,811,4300,6.8,0.35
+Automotive repair and maintenance (except car washes),"8111, except 811192",2700,6.9,0.45
+Personal and laundry services,812,4400,2.2,0.1
+"Religious, grantmaking, civic, professional, and similar organizations",813,3700,1.3,0.07
+Government,,40400,2,0.03
+Federal government,,8200,1.1,0.04
+State government,,13900,1.3,0.04
+Local government,,18400,2.8,0.07
