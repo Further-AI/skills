@@ -16,7 +16,7 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = [".", "skills/excel-generation/scripts"]
+pythonpath = [".", "skills-backlog/excel-generation/scripts"]
 
 [tool.ty.environment]
-extra-paths = ["skills/excel-generation/scripts"]
+extra-paths = ["skills-backlog/excel-generation/scripts"]

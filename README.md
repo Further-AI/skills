@@ -8,9 +8,31 @@ uses to perform a task.
 
 | Skill | Purpose |
 | --- | --- |
-| [Spreadsheet](skills/excel-generation/SKILL.md) | Build and check Excel workbooks from insurance documents and spreadsheets. |
-| [Documents](skills/docx/SKILL.md) | Edit and inspect `.docx` documents with the `paper-docx` distribution. |
-| [Presentation](skills/pptx/SKILL.md) | Edit and inspect `.pptx` decks with the `paper-pptx` distribution. |
+| [Commercial Auto Check](skills/commercial-auto-check/SKILL.md) | Decode fleet VINs with NHTSA and review a motor carrier's FMCSA registration and safety record. |
+| [Date of Loss Weather Check](skills/date-of-loss-weather-check/SKILL.md) | Check NOAA storm records for hail, wind, tornado, flood, or lightning near a claimed loss. |
+| [Distance to Coast](skills/distance-to-coast/SKILL.md) | Give a ZIP code's distance to the coast and Great Lakes with the standard distance band. |
+| [FDA Recall History](skills/fda-recall-history/SKILL.md) | Look up a company's FDA food, drug, and device recall history since 2012. |
+| [Flood Claim History](skills/flood-claim-history/SKILL.md) | Summarize NFIP flood claims for a ZIP code or county since 1978. |
+| [Healthcare Exclusion Screen](skills/healthcare-exclusion-screen/SKILL.md) | Screen people and businesses against the HHS-OIG exclusion list (LEIE). |
+| [Industry Code Extraction](skills/industry-code-extraction/SKILL.md) | Identify a business's NAICS and SIC codes. |
+| [Industry Hazard Benchmark](skills/industry-hazard-benchmark/SKILL.md) | Benchmark an industry's BLS injury and fatality rates by NAICS code. |
+| [Location Hazard History](skills/location-hazard-history/SKILL.md) | Summarize a location's severe weather and FEMA disaster history, ranked against every U.S. county. |
+| [Medical Code Lookup](skills/medical-code-lookup/SKILL.md) | Explain ICD-10-CM and HCPCS Level II codes and check them against the reported injury. |
+| [Mine Safety Record](skills/mine-safety-record/SKILL.md) | Look up a mine's MSHA registration and safety record since 2021. |
+| [Payroll Reasonableness](skills/payroll-reasonableness/SKILL.md) | Check reported payroll against BLS wages by occupation, industry, and state. |
+| [Wildfire Risk](skills/wildfire-risk/SKILL.md) | Rate wildfire exposure for a community, ZIP code, or county from USDA Forest Service data. |
+
+## Backlog
+
+`skills-backlog/` holds skills that are kept in the repository but not published.
+Only folders under `skills/` are packaged and released. Move a folder between
+the two directories to publish or retire it.
+
+| Skill | Purpose |
+| --- | --- |
+| [Spreadsheet](skills-backlog/excel-generation/SKILL.md) | Build and check Excel workbooks from insurance documents and spreadsheets. |
+| [Documents](skills-backlog/docx/SKILL.md) | Edit and inspect `.docx` documents with the `paper-docx` distribution. |
+| [Presentation](skills-backlog/pptx/SKILL.md) | Edit and inspect `.pptx` decks with the `paper-pptx` distribution. |
 
 The `docx` and `pptx` skills are vendored from
 [paper-instruments/skills](https://github.com/paper-instruments/skills) (MIT —
@@ -39,10 +61,10 @@ from the repository root:
 
 ```sh
 uv sync --locked
-uv run python scripts/skill_bundle.py skills/excel-generation --output dist/excel-generation.zip
+uv run python scripts/skill_bundle.py skills/wildfire-risk --output dist/wildfire-risk.zip
 ```
 
-This validates the skill and writes `dist/excel-generation.zip`. Omit
+This validates the skill and writes `dist/wildfire-risk.zip`. Omit
 `--output` and its path to validate without creating a ZIP. The `dist/` directory
 is gitignored.
 
@@ -57,10 +79,11 @@ catalog and activates it atomically. Evaluation scores do not block merges or
 publication. The two publishing jobs run independently; a failure in one does
 not cancel the other.
 
-The catalog contains Documents, Spreadsheet, and Presentation. Every published
-skill is enabled in the destination catalog, including newly added folders. There
-is no separate availability list to update. Removing a folder retires that skill
-from future use; historical bundles remain stored.
+The catalog contains every folder under `skills/` (see the table above). Every
+published skill is enabled in the destination catalog, including newly added
+folders. There is no separate availability list to update. Removing a folder, or
+moving it to `skills-backlog/`, retires that skill from future use; historical
+bundles remain stored.
 Failed uploads, stale commits, and catalog conflicts leave that environment's
 active catalog unchanged.
 
@@ -142,5 +165,5 @@ lives in [scripts/publish_skill.py](scripts/publish_skill.py). Tests are in `tes
 
 ```sh
 uv run pytest -x --tb=short
-uv run ty check scripts tests skills/excel-generation/scripts
+uv run ty check scripts tests skills-backlog/excel-generation/scripts
 ```
