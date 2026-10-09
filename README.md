@@ -73,11 +73,11 @@ and executable flags. Unchanged inputs produce identical ZIPs.
 
 ## Automatic publication
 
-Merging to `main` publishes every skill to staging and production after tests,
-type checks, and bundle validation pass. Each environment uploads the complete
-catalog and activates it atomically. Evaluation scores do not block merges or
-publication. The two publishing jobs run independently; a failure in one does
-not cancel the other.
+Merging to `main` publishes every skill to every environment in the table under
+[Configure publishing](#configure-publishing) after tests, type checks, and bundle
+validation pass. Each environment uploads the complete catalog and activates it
+atomically. Evaluation scores do not block merges or publication. The publishing
+jobs run independently; a failure in one does not cancel the others.
 
 The catalog contains every folder under `skills/` (see the table above). Every
 published skill is enabled in the destination catalog, including newly added
@@ -103,7 +103,7 @@ uv run python -m scripts.skill_catalog skills --output dist/release
 
 ## Configure publishing
 
-Both backends must support `GET/PUT /api/v1/internal/skills/catalog`, including
+Every backend must support `GET/PUT /api/v1/internal/skills/catalog`, including
 `enabled_skills`, and have their FurtherAI ownership and Azure storage settings
 configured.
 
@@ -114,13 +114,19 @@ in each to its backend's HTTPS base URL without `/api/v1`:
 | --- | --- | --- |
 | `us-staging` | US staging backend | `furtherai-skills-us-staging` |
 | `us-production` | US production backend | `furtherai-skills-production` |
+| `eu-production` | EU production backend | `furtherai-skills-eu-production` |
+| `grange` | Grange single-tenant backend | `furtherai-skills-grange` |
+
+Each backend keeps its own catalog, so an environment missing from this table and
+from the workflow matrix shows no FurtherAI skills. Add every new FurtherAI
+environment to both.
 
 Set the repository variable `SKILLS_PUBLISH_ENABLED` to `true`. The publisher uses
 GitHub OIDC; no GitHub App, Braintrust key, Azure credential, or long-lived
 publishing token is required in this repository for publication.
 
-Run **Validate and publish** manually on the current `main` commit to verify both
-environments. Later merges publish automatically. Missing configuration fails
+Run **Validate and publish** manually on the current `main` commit to verify every
+environment. Later merges publish automatically. Missing configuration fails
 the affected job. A catalog conflict stops publication; inspect the competing
 release before rerunning the current `main` commit.
 

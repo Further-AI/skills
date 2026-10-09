@@ -174,8 +174,8 @@ def test_workflow_packages_empty_repository_after_last_skill_is_deleted(
     }
 
 
-def test_publishing_is_independent_of_evaluation_in_both_environments() -> None:
-    """Publish both environments without judge dependencies or shared cancellation."""
+def test_publishing_is_independent_of_evaluation_in_every_environment() -> None:
+    """Publish every environment without judge dependencies or shared cancellation."""
     workflow = yaml.safe_load(
         (Path(__file__).parents[1] / ".github/workflows/validate.yml").read_text()
     )
@@ -188,6 +188,11 @@ def test_publishing_is_independent_of_evaluation_in_both_environments() -> None:
     assert publish["strategy"]["matrix"]["include"] == [
         {"environment": "us-staging", "audience": "furtherai-skills-us-staging"},
         {"environment": "us-production", "audience": "furtherai-skills-production"},
+        {
+            "environment": "eu-production",
+            "audience": "furtherai-skills-eu-production",
+        },
+        {"environment": "grange", "audience": "furtherai-skills-grange"},
     ]
     assert publish["environment"] == "${{ matrix.environment }}"
     assert "matrix.environment" in publish["concurrency"]["group"]
