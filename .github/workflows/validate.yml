@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     strategy:
-      # A failure in one environment must not cancel the other publication.
+      # A failure in one environment must not cancel the other publications.
       fail-fast: false
       matrix:
         include:
@@ -40,6 +40,10 @@ jobs:
             audience: furtherai-skills-us-staging
           - environment: us-production
             audience: furtherai-skills-production
+          - environment: eu-production
+            audience: furtherai-skills-eu-production
+          - environment: grange
+            audience: furtherai-skills-grange
     environment: ${{ matrix.environment }}
     permissions:
       contents: read
