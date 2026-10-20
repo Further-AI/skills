@@ -1,0 +1,31 @@
+{
+  "_readme": "Opt-in preset for --synonyms. Each top-level key is a path marker matched as a substring of the field path (case-insensitive); its table maps a normalized value to its canonical form. Loaded ONLY when passed on the command line: accuracy_report.py --synonyms references/insurance_synonyms.json. Both markers below carry the same table because 'line_of_business' does not contain 'lob'.",
+  "line_of_business": {
+    "gl": "general liability",
+    "cgl": "general liability",
+    "d&o": "directors & officers",
+    "d & o": "directors & officers",
+    "directors and officers": "directors & officers",
+    "apd": "auto physical damage",
+    "wc": "workers compensation",
+    "workers comp": "workers compensation",
+    "bop": "business owners policy",
+    "epli": "employment practices liability",
+    "auto": "commercial auto",
+    "commercial auto": "commercial auto"
+  },
+  "lob": {
+    "gl": "general liability",
+    "cgl": "general liability",
+    "d&o": "directors & officers",
+    "d & o": "directors & officers",
+    "directors and officers": "directors & officers",
+    "apd": "auto physical damage",
+    "wc": "workers compensation",
+    "workers comp": "workers compensation",
+    "bop": "business owners policy",
+    "epli": "employment practices liability",
+    "auto": "commercial auto",
+    "commercial auto": "commercial auto"
+  }
+}

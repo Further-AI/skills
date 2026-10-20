@@ -1,0 +1,13 @@
+{
+  "name": "fai",
+  "owner": {
+    "name": "FurtherAI"
+  },
+  "plugins": [
+    {
+      "name": "fai",
+      "source": "./",
+      "description": "FurtherAI platform plugin: workflows, submissions, evaluations, triage, account context, and customer artifacts."
+    }
+  ]
+}
