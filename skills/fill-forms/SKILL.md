@@ -9,7 +9,7 @@ description: Fill an existing PDF or DOCX form from supplied documents or answer
 
 Use the installed `fai-form` engine for field inspection, writing, and independent
 verification. Work from the original template in a work directory. Publish a copy
-only after verification and visual review.
+only after native verification and visual review when the environment supports it.
 
 Narrate each phase. Before you inspect, fill, verify, and deliver, post one short
 line naming what you are about to do — and the field count once you know it — so
