@@ -2,6 +2,8 @@
 
 import argparse
 import json
+import os
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -136,8 +138,16 @@ def fill(source: Path, plan_path: Path, output: Path) -> dict[str, Any]:
         require_outcomes(result, values)
         verified = native("verify", str(candidate), f"@{state_file}", f"@{values_file}")
         require_outcomes(verified, values)
-        # Exclusive creation also protects an output created during verification.
-        output.hardlink_to(candidate)
+        # Copy, don't hard-link: the sandbox workspace volume can reject os.link
+        # with EIO. O_EXCL keeps the exclusive create that protects an output
+        # appearing during verification, and the copy outlives the work dir.
+        fd = os.open(output, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        try:
+            with os.fdopen(fd, "wb") as destination, candidate.open("rb") as src_file:
+                shutil.copyfileobj(src_file, destination)
+        except BaseException:
+            output.unlink(missing_ok=True)
+            raise
     return {
         "verified": True,
         "path": str(output),
