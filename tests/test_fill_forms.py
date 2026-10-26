@@ -164,3 +164,41 @@ def test_output_created_during_verification_is_preserved(
         fill_plan.fill(original, plan_path, output)
     assert output.read_bytes() == b"concurrent result"
     assert not list(tmp_path.glob("form-plan-*"))
+
+
+@pytest.mark.parametrize("copy_fails", [False, True])
+def test_publication_works_without_links_and_cleans_up_failed_copies(
+    tmp_path, monkeypatch, state, plan, copy_fails
+):
+    original = tmp_path / "original.pdf"
+    original.write_bytes(b"original")
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan))
+    output = tmp_path / "output.pdf"
+
+    def native(command, *args):
+        if command == "inspect":
+            return state
+        if command == "fill":
+            Path(args[2]).write_bytes(b"verified form")
+        return {"outcomes": [{"id": "insured", "placed": True}]}
+
+    def unsupported_link(*args, **kwargs):
+        raise OSError("hard links unavailable on workspace")
+
+    def partial_copy(source, destination):
+        destination.write(b"partial")
+        raise OSError("copy interrupted")
+
+    monkeypatch.setattr(fill_plan, "native", native)
+    monkeypatch.setattr(fill_plan.os, "link", unsupported_link)
+    if copy_fails:
+        monkeypatch.setattr(fill_plan.shutil, "copyfileobj", partial_copy)
+        with pytest.raises(OSError, match="copy interrupted"):
+            fill_plan.fill(original, plan_path, output)
+        assert not output.exists()
+    else:
+        assert fill_plan.fill(original, plan_path, output)["verified"]
+        assert output.read_bytes() == b"verified form"
+    assert original.read_bytes() == b"original"
+    assert not list(tmp_path.glob("form-plan-*"))

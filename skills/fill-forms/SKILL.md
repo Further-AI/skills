@@ -11,6 +11,10 @@ Use the installed `fai-form` engine for field inspection, writing, and independe
 verification. Work from the original template in a work directory. Publish a copy
 only after verification and visual review.
 
+Narrate each phase. Before you inspect, fill, verify, and deliver, post one short
+line naming what you are about to do — and the field count once you know it — so
+the user sees progress while the `fai-form` steps run instead of a silent gap.
+
 ## Map the requested answers
 
 1. Fetch the original template and the supplied sources. Read the source passages
@@ -75,15 +79,21 @@ or publish an unverified file.
 
 ## Review and deliver
 
-- Render every output page and compare it with the original. For PDF, use
-  PyMuPDF; for DOCX, use LibreOffice Writer to render a work-directory PDF.
-  Inspect narrow fields for clipping, wrapping, overlap, and unreadable text.
-  Native verification does not replace this review.
+- Render every output page and compare it with the original: render to images
+  (PDF via PyMuPDF; DOCX via LibreOffice Writer to a work-directory PDF) and view
+  them with the file-reading tool. Inspect narrow fields for clipping, wrapping,
+  overlap, and unreadable text. Native verification does not replace this review.
+  If this environment grants no file-reading tool for the rendered images, or the
+  renderer is unavailable, do not retry it as an error or call the fill incomplete:
+  skip the visual comparison, rely on the native verification that already passed,
+  and tell the user plainly that the layout was not visually checked here, so they
+  should glance at the delivered file.
 - Audit the writes against the source-backed plan. Preserve all unrequested
   answers, coverage symbols, signatures, page content, and layout. Any required
   repair goes through the helper and verification again.
-- Copy only the verified, visually checked final document into this turn's output
-  directory. Keep plan, state, renders, and temporary files in the work directory.
+- Copy only the verified final document (visually checked when the environment
+  allows) into this turn's output directory. Keep plan, state, renders, and
+  temporary files in the work directory.
 - Name the delivered file. Cite the supplied sources for the filled answers.
   List each requested blank or unresolved field and its reason. Say “completed”
   only for the scope actually verified; disclose partial completion plainly.
