@@ -9,6 +9,8 @@ description: Show how often a ZIP code or county has had NFIP (National Flood In
 
 NFIP claim history is the best free evidence of where it actually floods, including outside FEMA's mapped high-risk zones. It isn't published per ZIP anywhere a web search can reach. The tables in `references/` are the source of truth; don't estimate claim counts from memory.
 
+Narrate as you go: before you look up the location and before you deliver the rating, post one short line naming what you're doing (e.g. "Checking NFIP flood claims for ZIP 77002…"), so the user sees progress instead of a silent gap while the lookup runs.
+
 | File | What it holds |
 |---|---|
 | `references/flood_claims_by_zip.csv` | One row per ZIP code with at least one NFIP claim (about 26,000 ZIPs) |
