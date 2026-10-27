@@ -9,6 +9,8 @@ description: Give a ZIP code's distance to the coast (Atlantic, Gulf, Pacific, C
 
 Carriers' coastal appetite, wind deductibles and named-storm rules depend on distance to the coast. Estimates vary with what counts as "coast", so this skill gives one consistent measure for every ZIP code. The table in `references/` is the source of truth; don't estimate distances from memory.
 
+Narrate as you go: before you look up the ZIP and before you deliver the rating, post one short line naming what you're doing (e.g. "Measuring distance to coast for ZIP 33139…"), so the user sees progress instead of a silent gap while the lookup runs.
+
 | File | What it holds |
 |---|---|
 | `references/zip_distance_to_coast.csv` | All 33,791 ZIP codes (Census 2020 ZIP code areas): centroid, miles to the nearest coast, which coast, distance band, and miles to the nearest Great Lakes shoreline |

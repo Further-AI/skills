@@ -55,6 +55,19 @@ The label changes how the skill appears in FurtherAI. Identifiers, permissions,
 and saved selections still use `name`. Skills without a label keep their current
 sentence-case name. Publishing preserves this metadata inside the skill bundle.
 
+## Narrate each phase
+
+Skills run through tools the user never sees — shell steps, file writes, data
+lookups, API calls. While those run, the FurtherAI chat status line can only show
+a generic "Working…". When a skill narrates what it is doing, the app surfaces
+that line live instead, so the user sees real progress rather than a silent gap.
+
+Instruct the skill to **post one short line before each phase**, naming what it is
+about to do — and a count once it knows one ("Filling 34 fields…", "Checking NFIP
+flood claims for ZIP 77002…"). Keep each line to one sentence: the status line
+shows the most recent one. [`fill-forms`](skills/fill-forms/SKILL.md) carries the
+reference wording.
+
 ## Getting started
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run
