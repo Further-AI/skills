@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import re
 from pathlib import Path
 from subprocess import CompletedProcess
 
@@ -202,3 +203,11 @@ def test_publication_works_without_links_and_cleans_up_failed_copies(
         assert output.read_bytes() == b"verified form"
     assert original.read_bytes() == b"original"
     assert not list(tmp_path.glob("form-plan-*"))
+
+
+def test_skill_names_no_removed_pdf_renderer():
+    skill = SCRIPT.parents[1]
+    for path in sorted(skill.rglob("*")):
+        if path.is_file() and "__pycache__" not in path.parts:
+            text = path.read_text()
+            assert not re.search(r"pymupdf|\bfitz\b", text, re.IGNORECASE), path
