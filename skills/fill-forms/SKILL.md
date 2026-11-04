@@ -79,15 +79,36 @@ or publish an unverified file.
 
 ## Review and deliver
 
-- Render every output page and compare it with the original: render to images
-  (PDF via PyMuPDF; DOCX via LibreOffice Writer to a work-directory PDF) and view
-  them with the file-reading tool. Inspect narrow fields for clipping, wrapping,
-  overlap, and unreadable text. Native verification does not replace this review.
-  If this environment grants no file-reading tool for the rendered images, or the
-  renderer is unavailable, do not retry it as an error or call the fill incomplete:
-  skip the visual comparison, rely on the native verification that already passed,
-  and tell the user plainly that the layout was not visually checked here, so they
-  should glance at the delivered file.
+- Render every output page and compare it with the original: render both to
+  images and view them with the file-reading tool. For DOCX, first convert each
+  to a work-directory PDF with LibreOffice Writer. Render each PDF with
+  `pypdfium2`, one PNG per page, then run the same command on the original with
+  the `WORK/render/original` prefix:
+
+  ```bash
+  mkdir -p WORK/render
+  python - WORK/verified-copy.pdf WORK/render/copy <<'PY'
+  import sys
+  import pypdfium2 as pdfium
+
+  pdf = pdfium.PdfDocument(sys.argv[1])
+  pdf.init_forms()  # without it, form field values render blank
+  for number, page in enumerate(pdf, start=1):
+      page.render(scale=1.3).to_pil().save(f"{sys.argv[2]}-page-{number}.png")
+  PY
+  ```
+
+  On some forms, `init_forms()` warns that this PDFium build has no XFA support.
+  That is expected: the fields render from the form's AcroForm layer, so the pages
+  of both the original and the filled copy are still fine to review.
+
+  Inspect narrow fields for clipping, wrapping, overlap, and unreadable text.
+  Native verification does not replace this review. If this environment grants no
+  file-reading tool for the rendered images, or the renderer is unavailable, do
+  not retry it as an error or call the fill incomplete: skip the visual
+  comparison, rely on the native verification that already passed, and tell the
+  user plainly that the layout was not visually checked here, so they should
+  glance at the delivered file.
 - Audit the writes against the source-backed plan. Preserve all unrequested
   answers, coverage symbols, signatures, page content, and layout. Any required
   repair goes through the helper and verification again.
