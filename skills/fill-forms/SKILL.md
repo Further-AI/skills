@@ -98,6 +98,10 @@ or publish an unverified file.
   PY
   ```
 
+  On some forms, `init_forms()` warns that this PDFium build has no XFA support.
+  That is expected: the fields render from the form's AcroForm layer, so the pages
+  of both the original and the filled copy are still fine to review.
+
   Inspect narrow fields for clipping, wrapping, overlap, and unreadable text.
   Native verification does not replace this review. If this environment grants no
   file-reading tool for the rendered images, or the renderer is unavailable, do
