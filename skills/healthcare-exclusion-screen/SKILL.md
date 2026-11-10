@@ -27,23 +27,25 @@ For each, collect whatever identifiers you have: full name, NPI, date of birth, 
 ## 2. Search
 - **Individuals:** use the file for their last-name initial. Search the last name first, then narrow by first name. Also try maiden or former names, hyphenated parts, and common nicknames (Bob/Robert, Liz/Elizabeth).
 - **Businesses:** search the distinctive words of the name without suffixes such as Inc, LLC or PC, and search each DBA.
-- **Treat the NPI as decisive.** The same NPI is a match; a different NPI rules out a name-only hit. Most listed individuals have no NPI recorded, so a missing NPI decides nothing.
+- **Identifiers can confirm a hit, never clear one.** The same NPI is a match. Most listed individuals have no NPI recorded, so a missing NPI decides nothing. The NPI, date of birth, city and specialty on a submission come from the applicant, and an excluded person or business can change them while keeping the listed name; a value that differs from the list does not rule the hit out.
 
 ## 3. Adjudicate each hit
 | Result | When |
 |---|---|
 | **Match** | NPI matches, or name plus date of birth matches, or name plus a city/state and specialty that fit |
-| **Possible match** | The name matches, but nothing else confirms or rules it out |
-| **No match** | No hit, or every hit is ruled out by a different NPI, date of birth, or an incompatible location or specialty |
+| **Possible match** | The name matches and nothing confirms it, including when the submission's NPI, date of birth, city or specialty differs from the list |
+| **No match** | The search found no similar name |
+
+- **Differing identifiers:** keep the hit. It is a Possible match, or a Match if another identifier confirms it. Include its `Listing` and name each value that differs under `Flags`. A listed name applying under a new NPI, location or practice is worth asking about in itself. Do not clear the hit yourself; the person screening can settle it on the live list at oig.hhs.gov/exclusions, which verifies a hit against an SSN or EIN.
 
 - **Reinstatement:** a non-empty `reinstatement_date` means the exclusion ended. Report it as **Previously excluded (reinstated <date>)**: still relevant history, but not a current bar.
 - **Waiver:** a `waiver_date` means a state was allowed to keep paying this provider. Report it, and the waiver state.
 - **Exclusion type:** look it up in `references/exclusion_types.md` and explain it in plain words. Patient abuse (`1128a2`) reads very differently from a defaulted student loan (`1128b14`).
 
 ## Confidence
-- **High:** decided by NPI or date of birth, or several identifiers agree.
-- **Medium:** decided on name plus location or specialty only.
-- **Low:** a common name with no other identifiers. Say which identifier would settle it.
+- **High:** confirmed by a matching NPI or date of birth, or several identifiers agree.
+- **Medium:** confirmed on name plus location or specialty only.
+- **Low:** a common name with no other identifiers, or a name hit whose listed identifiers differ from the submission. Say which identifier would settle it.
 
 ## Output
 One block per person or business screened:
@@ -55,15 +57,15 @@ Why: <the identifiers that decided it>
 
 Listing: <name on the list>, <specialty>, <city, state>, excluded <date> under <type>: <plain-English reason, minimum period>
 Alternatives considered:
-1. <other list entry with a similar name>: <why it's ruled out>
+1. <other list entry with a similar name>: <how its identifiers compare with the submission>
 2. ...
 3. ...
 
-Flags: <waivers, owners linked to an excluded entity, name variations, or "none">
+Flags: <waivers, owners linked to an excluded entity, name variations, identifiers that differ from the list, or "none">
 To raise confidence: <NPI, date of birth or other identifier needed; only when Medium or Low>
 Source: HHS-OIG LEIE, September 2026. Confirm on the live list at oig.hhs.gov/exclusions before binding or paying.
 ```
-Omit `Listing` when the result is No match. List up to three alternatives, the closest names first, and only names a reviewer would actually wonder about. Return it as JSON with these fields when the caller asks for structured output.
+Omit `Listing` when the result is No match. Every name hit has a `Listing`, in the text block and in structured output; when several entries share the name, list the closest one there and the others under alternatives, still as possible hits. List up to three alternatives, the closest names first, and only names a reviewer would actually wonder about. Return it as JSON with these fields when the caller asks for structured output.
 
 A match is a reason to refer the risk to underwriting management or compliance, not an automatic decline.
 
