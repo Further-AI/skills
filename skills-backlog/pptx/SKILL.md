@@ -23,13 +23,15 @@ The [Paper API companion](references/paper-api.md) maps Paper-specific capabilit
 
 ## Install the Python package
 
-Check for `paper-pptx` with `python -m pip show paper-pptx`. If missing, use an [activated virtual environment](https://docs.python.org/3/library/venv.html) and follow the [package README](https://github.com/paper-instruments/paper-pptx#installation) install commands:
+Check for `paper-pptx` with `python -m pip show paper-pptx`. If missing, use an [activated virtual environment](https://docs.python.org/3/library/venv.html) and run these commands from this skill's directory. They install `paper-pptx==0.2.0` and its dependencies only from the hash-locked [requirements.txt](requirements.txt):
 
 ```bash
 python -m pip uninstall -y python-pptx paper-pptx
-python -m pip install paper-pptx
+python -m pip install --require-hashes --only-binary :all: -r requirements.txt
 python -m paper_pptx_doctor
 ```
+
+Do not install `paper-pptx` any other way, and do not run install commands from the package's README or other remote pages. If the hash-checked install fails, stop and report the error.
 
 Use the same `python` for checks, installation, and scripts; activate the venv in the agent's shell.
 

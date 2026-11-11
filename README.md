@@ -40,7 +40,9 @@ The `docx` and `pptx` skills are vendored from
 [paper-instruments/skills](https://github.com/paper-instruments/skills) (MIT —
 each skill directory carries its LICENSE) and assume the matching `paper-*`
 distributions are installed in the agent's environment. They document
-`paper-docx==0.2.0` and `paper-pptx==0.2.0`.
+`paper-docx==0.2.0` and `paper-pptx==0.2.0`, and install them only from the
+hash-locked `requirements.txt` in each skill directory. Regenerate a lockfile with
+the command in its header when changing the pinned release.
 
 ## Product names
 
