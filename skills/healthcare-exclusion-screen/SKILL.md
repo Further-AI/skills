@@ -43,9 +43,10 @@ For each, collect whatever identifiers you have: full name, NPI, date of birth, 
 - **Exclusion type:** look it up in `references/exclusion_types.md` and explain it in plain words. Patient abuse (`1128a2`) reads very differently from a defaulted student loan (`1128b14`).
 
 ## Confidence
+Rate by the strongest identifier that matches. A differing identifier never lowers a rating that a match earned; name it under `Flags` instead.
 - **High:** confirmed by a matching NPI or date of birth, or several identifiers agree.
 - **Medium:** confirmed on name plus location or specialty only.
-- **Low:** a common name with no other identifiers, or a name hit whose listed identifiers differ from the submission. Say which identifier would settle it.
+- **Low:** nothing confirms the hit: a common name with no other identifiers, or a name hit whose listed identifiers all differ from the submission or are missing. Say which identifier would settle it.
 
 ## Output
 One block per person or business screened:
