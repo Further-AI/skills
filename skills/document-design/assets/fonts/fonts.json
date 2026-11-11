@@ -1,0 +1,15 @@
+{
+  "Fraunces 72pt Light": {
+    "regular": "Fraunces72pt-Light",
+    "italic": "Fraunces72pt-LightItalic"
+  },
+  "Wix Madefor Display": {
+    "regular": "WixMadeforDisplay-Regular"
+  },
+  "Wix Madefor Text SemiBold": {
+    "regular": "WixMadeforText-SemiBold"
+  },
+  "IBM Plex Mono Medium": {
+    "regular": "IBMPlexMono-Medium"
+  }
+}
