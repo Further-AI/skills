@@ -77,6 +77,67 @@ the original. After two unsuccessful repairs, explain the remaining fields and
 request the missing information or a supported template. Do not claim completion
 or publish an unverified file.
 
+## Chat summary cards (only when available)
+
+Use summary cards if and only if the system prompt contains this exact line:
+`Form summary cards: available.` Otherwise, do not add the richer plan keys or
+summary arguments below, and keep the existing delivery instructions unchanged.
+
+When cards are available, add `ask`, `why`, and `replies` to blanks that only the
+user can answer. Include at most five questions and at most three short, obvious
+reply options; use `[]` when no obvious options exist. Do not make signatures or
+facts recoverable from sources into questions. Add `assumption` with the reason to
+at most five inferred or calculated fields, including values taken from an older
+or different document.
+
+The chat card recognizes the phase commands and displays the latest narration
+line under the current stage. Run these commands directly with these shapes; do
+not wrap them in another script:
+
+```bash
+fai-form inspect <template> > <work>/original-state.json
+python scripts/fill_plan.py <template> <plan> <dest> [options]
+```
+
+For the visual check, run `fai-form render <dest> <work>/render` directly when
+that subcommand is available. Otherwise run
+`pdftoppm -png <dest> <work>/render/page` directly. When cards are available,
+these commands replace the `pypdfium2` rendering command in Review and deliver.
+Use the helper options `--form-name "FORM NAME" --draft 1` for the first draft. The
+card names the helper's destination file, so give the destination the filename
+the user should receive and deliver the verified copy under that same name.
+
+Before each phase, post exactly one short sentence. Include the known counts,
+using lines such as “Reading the form and 3 documents…”, “Filling 31 of 350
+fields…”, “Checking the filled pages…”, and, immediately before delivery, “Draft
+ready.” Do not combine a narration line with another sentence.
+
+In the final reply, use one to three short sentences, do not list fields, then copy
+the helper's fenced `fai-form-summary` block verbatim. For example: “Your first
+draft is ready. I filled 297 of 350 answers; I need 3 things only you know.”
+
+When the user answers, preserve the prior plan, update the current plan with those
+values and cite the user's message in each `source`, and write a JSON object mapping
+each answered `ask` exactly to the user's answer. Re-run the helper with
+`--draft N+1 --previous-plan PRIOR_PLAN --answered ANSWERS`, plus `--form-name`.
+Publish the verified result as a new version of the same generated document. Reply
+with one to three short sentences and the new summary block copied verbatim.
+
+If the prior plan is missing from the work directory because the sandbox was
+recycled, fetch the current version of the delivered draft and run
+`fai-form inspect <current-draft> > <work>/previous-state.json`. Rebuild the
+current plan, then pass `--previous-state <work>/previous-state.json` instead of
+`--previous-plan`; this compares changes with the values actually in the latest
+draft. Also save the JSON inside the previous turn's `fai-form-summary` block,
+copied from the chat, to `<work>/previous-summary.json` and pass
+`--previous-summary <work>/previous-summary.json` with `--answered`, so the
+answered questions still appear on the card. If the user stops the run, publish nothing. On the next turn, say whether
+an earlier draft remains the latest published version.
+
+If verification still fails after the two repair attempts, reply in one to three
+sentences naming what could not be filled and why. Do not print or construct a
+summary block; the helper emits none on failure.
+
 ## Review and deliver
 
 - Render every output page and compare it with the original: render both to
@@ -115,6 +176,8 @@ or publish an unverified file.
 - Copy only the verified final document (visually checked when the environment
   allows) into this turn's output directory. Keep plan, state, renders, and
   temporary files in the work directory.
-- Name the delivered file. Cite the supplied sources for the filled answers.
-  List each requested blank or unresolved field and its reason. Say “completed”
-  only for the scope actually verified; disclose partial completion plainly.
+- Name the delivered file. When summary cards are unavailable, cite the supplied
+  sources for the filled answers and list each requested blank or unresolved field
+  with its reason. Say “completed” only for the scope actually verified; disclose
+  partial completion plainly. When cards are available, use the short final-reply
+  format in the summary-card section instead.
