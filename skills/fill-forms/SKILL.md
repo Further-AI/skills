@@ -77,6 +77,30 @@ the original. After two unsuccessful repairs, explain the remaining fields and
 request the missing information or a supported template. Do not claim completion
 or publish an unverified file.
 
+## Chat summary cards (only when available)
+
+Use summary cards if and only if the system prompt contains this exact line:
+`Form summary cards: available.` Otherwise, do not add the richer plan keys or
+summary arguments below, and keep the existing delivery instructions unchanged.
+
+When cards are available, add `ask`, `why`, and `replies` to blanks that only the
+user can answer. Include at most five questions and at most three short, obvious
+reply options; use `[]` when no obvious options exist. Do not make signatures or
+facts recoverable from sources into questions. Add `assumption` with the reason to
+at most five inferred or calculated fields, including values taken from an older
+or different document. Run the helper with `--form-name "FORM NAME" --draft 1`.
+
+In the final reply, use one to three short sentences, do not list fields, then copy
+the helper's fenced `fai-form-summary` block verbatim. For example: “Your first
+draft is ready. I filled 297 of 350 answers; I need 3 things only you know.”
+
+When the user answers, preserve the prior plan, update the current plan with those
+values and cite the user's message in each `source`, and write a JSON object mapping
+each answered `ask` exactly to the user's answer. Re-run the helper with
+`--draft N+1 --previous-plan PRIOR_PLAN --answered ANSWERS`, plus `--form-name`.
+Publish the verified result as a new version of the same generated document. Reply
+with one to three short sentences and the new summary block copied verbatim.
+
 ## Review and deliver
 
 - Render every output page and compare it with the original: render both to
@@ -115,6 +139,8 @@ or publish an unverified file.
 - Copy only the verified final document (visually checked when the environment
   allows) into this turn's output directory. Keep plan, state, renders, and
   temporary files in the work directory.
-- Name the delivered file. Cite the supplied sources for the filled answers.
-  List each requested blank or unresolved field and its reason. Say “completed”
-  only for the scope actually verified; disclose partial completion plainly.
+- Name the delivered file. When summary cards are unavailable, cite the supplied
+  sources for the filled answers and list each requested blank or unresolved field
+  with its reason. Say “completed” only for the scope actually verified; disclose
+  partial completion plainly. When cards are available, use the short final-reply
+  format in the summary-card section instead.
