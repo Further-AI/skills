@@ -133,6 +133,44 @@ def question_entries(plan: dict[str, Any]) -> list[dict[str, Any]]:
     return [entry for entry in plan["blanks"] if isinstance(entry.get("ask"), str)]
 
 
+def changed_fields_from_state(
+    plan: dict[str, Any],
+    state: dict[str, Any],
+    previous_state: dict[str, Any],
+) -> list[dict[str, Any]]:
+    """Return planned writes whose values differ from a prior inspection."""
+    prior_fields = previous_state.get("fields")
+    if not isinstance(prior_fields, list) or any(
+        not isinstance(field, dict) for field in prior_fields
+    ):
+        raise ValueError("Previous state requires an inspected fields list")
+
+    previous_by_id = {
+        field["id"]: field
+        for field in prior_fields
+        if isinstance(field.get("id"), str)
+    }
+    previous_by_label: dict[str, list[dict[str, Any]]] = {}
+    for field in prior_fields:
+        label = field.get("label")
+        if isinstance(label, str) and label.strip():
+            previous_by_label.setdefault(label.strip(), []).append(field)
+
+    current_fields = {field["id"]: field for field in state["fields"]}
+    changed = []
+    for entry in plan["fields"]:
+        current_field = current_fields[entry["id"]]
+        previous_field = previous_by_id.get(entry["id"])
+        label = current_field.get("label")
+        if previous_field is None and isinstance(label, str) and label.strip():
+            label_matches = previous_by_label.get(label.strip(), [])
+            if len(label_matches) == 1:
+                previous_field = label_matches[0]
+        if previous_field is None or previous_field.get("value") != entry["value"]:
+            changed.append(entry)
+    return changed
+
+
 def build_summary(
     *,
     form_name: str,
@@ -141,9 +179,12 @@ def build_summary(
     state: dict[str, Any],
     plan: dict[str, Any],
     previous_plan: dict[str, Any] | None = None,
+    previous_state: dict[str, Any] | None = None,
     answered: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Build the deterministic version 1 chat-card payload."""
+    if previous_plan is not None and previous_state is not None:
+        raise ValueError("Use either a previous plan or previous state, not both")
     answered = answered or {}
     fields = {field["id"]: field for field in state["fields"]}
     planned = {entry["id"]: entry for entry in plan["fields"]}
@@ -201,17 +242,26 @@ def build_summary(
     ][:5]
 
     changes: list[dict[str, Any]] = []
-    if draft >= 2 and previous_plan is not None:
-        previous_fields = {entry["id"]: entry for entry in previous_plan["fields"]}
-        changed = [
-            entry
-            for entry in plan["fields"]
-            if entry["id"] not in previous_fields
-            or entry["value"] != previous_fields[entry["id"]]["value"]
-        ]
+    if draft >= 2 and (previous_plan is not None or previous_state is not None):
+        if previous_plan is not None:
+            previous_fields = {
+                entry["id"]: entry for entry in previous_plan["fields"]
+            }
+            changed = [
+                entry
+                for entry in plan["fields"]
+                if entry["id"] not in previous_fields
+                or entry["value"] != previous_fields[entry["id"]]["value"]
+            ]
+        else:
+            assert previous_state is not None
+            changed = changed_fields_from_state(plan, state, previous_state)
 
         answered_memberships: dict[str, list[str]] = {}
-        for source_plan in (previous_plan, plan):
+        source_plans = [plan]
+        if previous_plan is not None:
+            source_plans.insert(0, previous_plan)
+        for source_plan in source_plans:
             for entry in question_entries(source_plan):
                 ask = entry["ask"]
                 if ask in answered:
@@ -381,7 +431,9 @@ def main() -> None:
     parser.add_argument("output", type=Path)
     parser.add_argument("--form-name")
     parser.add_argument("--draft", type=positive_int, default=1)
-    parser.add_argument("--previous-plan", type=Path)
+    previous = parser.add_mutually_exclusive_group()
+    previous.add_argument("--previous-plan", type=Path)
+    previous.add_argument("--previous-state", type=Path)
     parser.add_argument("--answered", type=Path)
     args = parser.parse_args()
     try:
@@ -396,6 +448,11 @@ def main() -> None:
                 if args.previous_plan is not None
                 else None
             )
+            previous_state = (
+                load_object(args.previous_state, "Previous state")
+                if args.previous_state is not None
+                else None
+            )
             answered = load_answers(args.answered)
             result, state, plan = execute_fill(args.source, args.plan, args.output)
             summary = build_summary(
@@ -405,6 +462,7 @@ def main() -> None:
                 state=state,
                 plan=plan,
                 previous_plan=previous_plan,
+                previous_state=previous_state,
                 answered=answered,
             )
             summary_text = json.dumps(summary, ensure_ascii=False, separators=(",", ":"))

@@ -167,6 +167,14 @@ File restrictions, size caps, and file-count limits match FurtherAI's backend
 [frontmatter validation](https://github.com/Further-AI/fai-automation-backend/blob/769a1f66a1cd87ddef9cbb7020ed79462d0966ce/src/backend/skills/manifest.py)).
 Metadata field lengths follow the [Agent Skills specification](https://agentskills.io/specification#frontmatter).
 
+### Narrate each phase
+
+Keep user-visible progress lines short and place them immediately before the work
+they describe. The `fill-forms` step commands are a contract with the chat summary
+card and must stay stable, including the `fai-form inspect`,
+`python scripts/fill_plan.py`, and page-rendering command shapes; update the card
+integration before changing or wrapping them.
+
 ## Development
 
 Bundle validation lives in [scripts/skill_bundle.py](scripts/skill_bundle.py), complete

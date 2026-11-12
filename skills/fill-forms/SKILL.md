@@ -88,7 +88,27 @@ user can answer. Include at most five questions and at most three short, obvious
 reply options; use `[]` when no obvious options exist. Do not make signatures or
 facts recoverable from sources into questions. Add `assumption` with the reason to
 at most five inferred or calculated fields, including values taken from an older
-or different document. Run the helper with `--form-name "FORM NAME" --draft 1`.
+or different document.
+
+The chat card recognizes the phase commands and displays the latest narration
+line under the current stage. Run these commands directly with these shapes; do
+not wrap them in another script:
+
+```bash
+fai-form inspect <template> > <work>/original-state.json
+python scripts/fill_plan.py <template> <plan> <dest> [options]
+```
+
+For the visual check, run `fai-form render <dest> <work>/render` directly when
+that subcommand is available. Otherwise run
+`pdftoppm -png <dest> <work>/render/page` directly. When cards are available,
+these commands replace the `pypdfium2` rendering command in Review and deliver.
+Use the helper options `--form-name "FORM NAME" --draft 1` for the first draft.
+
+Before each phase, post exactly one short sentence. Include the known counts,
+using lines such as “Reading the form and 3 documents…”, “Filling 31 of 350
+fields…”, “Checking the filled pages…”, and, immediately before delivery, “Draft
+ready.” Do not combine a narration line with another sentence.
 
 In the final reply, use one to three short sentences, do not list fields, then copy
 the helper's fenced `fai-form-summary` block verbatim. For example: “Your first
@@ -100,6 +120,18 @@ each answered `ask` exactly to the user's answer. Re-run the helper with
 `--draft N+1 --previous-plan PRIOR_PLAN --answered ANSWERS`, plus `--form-name`.
 Publish the verified result as a new version of the same generated document. Reply
 with one to three short sentences and the new summary block copied verbatim.
+
+If the prior plan is missing from the work directory because the sandbox was
+recycled, fetch the current version of the delivered draft and run
+`fai-form inspect <current-draft> > <work>/previous-state.json`. Rebuild the
+current plan, then pass `--previous-state <work>/previous-state.json` instead of
+`--previous-plan`; this compares changes with the values actually in the latest
+draft. If the user stops the run, publish nothing. On the next turn, say whether
+an earlier draft remains the latest published version.
+
+If verification still fails after the two repair attempts, reply in one to three
+sentences naming what could not be filled and why. Do not print or construct a
+summary block; the helper emits none on failure.
 
 ## Review and deliver
 

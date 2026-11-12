@@ -377,6 +377,105 @@ def test_follow_up_summary_marks_answers_and_groups_changes():
     ]
 
 
+def test_follow_up_summary_compares_previous_state_by_id_then_label():
+    state = {
+        "fields": [
+            {"id": "new-mail", "label": "Mailing address", "kind": "text"},
+            {"id": "payroll", "label": "Total payroll", "kind": "text"},
+            {"id": "contact", "label": "Contact", "kind": "text"},
+        ]
+    }
+    plan = {
+        "fields": [
+            {"id": "new-mail", "value": "1200 W Fulton St", "source": "user"},
+            {"id": "payroll", "value": "$4,820,000", "source": "SOV"},
+            {"id": "contact", "value": "A. Smith", "source": "user"},
+        ],
+        "blanks": [],
+    }
+    previous_state = {
+        "fields": [
+            {
+                "id": "old-mail",
+                "label": "Mailing address",
+                "value": "1200 W Fulton St",
+            },
+            {"id": "payroll", "label": "Prior payroll", "value": "$4,000,000"},
+        ]
+    }
+
+    summary = fill_plan.build_summary(
+        form_name="ACORD 125",
+        output=Path("ACORD-125.pdf"),
+        draft=2,
+        state=state,
+        plan=plan,
+        previous_state=previous_state,
+    )
+
+    assert summary["changes"] == [
+        {"label": "Total payroll", "value": "$4,820,000", "fields": 1},
+        {"label": "Contact", "value": "A. Smith", "fields": 1},
+    ]
+
+
+def test_previous_state_cli_builds_changes(tmp_path, monkeypatch, capsys):
+    state = {
+        "fields": [
+            {"id": "insured", "label": "Named insured", "kind": "text", "value": ""}
+        ]
+    }
+    plan = {
+        "fields": [
+            {"id": "insured", "value": "Example LLC", "source": "user message"}
+        ],
+        "blanks": [],
+    }
+    previous_state = {
+        "fields": [
+            {"id": "prior-insured", "label": "Named insured", "value": "Old LLC"}
+        ]
+    }
+    original = tmp_path / "original.pdf"
+    original.write_bytes(b"original")
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan))
+    previous_state_path = tmp_path / "previous-state.json"
+    previous_state_path.write_text(json.dumps(previous_state))
+    output = tmp_path / "output.pdf"
+
+    def native(command, *args):
+        if command == "inspect":
+            return state
+        if command == "fill":
+            Path(args[2]).write_bytes(b"filled")
+        return {"outcomes": [{"id": "insured", "placed": True}]}
+
+    monkeypatch.setattr(fill_plan, "native", native)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "fill_plan.py",
+            str(original),
+            str(plan_path),
+            str(output),
+            "--form-name",
+            "ACORD 125",
+            "--draft",
+            "2",
+            "--previous-state",
+            str(previous_state_path),
+        ],
+    )
+    fill_plan.main()
+
+    summary = json.loads(capsys.readouterr().out.splitlines()[2])
+    assert summary["changes"] == [
+        {"label": "Named insured", "value": "Example LLC", "fields": 1}
+    ]
+
+
 def test_summary_failure_prints_no_card(tmp_path, monkeypatch, capsys):
     original = tmp_path / "original.pdf"
     original.write_bytes(b"original")
