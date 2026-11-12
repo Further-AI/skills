@@ -129,6 +129,57 @@ def has_answer(field: dict[str, Any]) -> bool:
     return True
 
 
+MAX_QUESTIONS = 5
+
+
+def recovered_question_entries(
+    previous_summary: dict[str, Any],
+    fields: dict[str, dict[str, Any]],
+    answered: dict[str, str],
+) -> list[dict[str, Any]]:
+    """Answered questions rebuilt from the previous turn's summary card.
+
+    Used when the previous plan is gone (a recycled sandbox): the card's
+    question text survives in the chat, and its field labels are mapped back to
+    the current inspection's IDs by unique label match. A question whose labels
+    match nothing is still returned, with no field ID.
+    """
+    by_label: dict[str, list[str]] = {}
+    for field_id, field in fields.items():
+        by_label.setdefault(field_label(field), []).append(field_id)
+    entries: list[dict[str, Any]] = []
+    for question in previous_summary["questions"]:
+        ask = question["ask"]
+        if ask not in answered:
+            continue
+        base = {"ask": ask, "why": question["why"], "replies": question["replies"]}
+        matched = [
+            by_label[label][0]
+            for label in question["fields"]
+            if len(by_label.get(label, [])) == 1
+        ]
+        entries.extend({**base, "id": field_id} for field_id in matched)
+        if not matched:
+            entries.append(base)
+    return entries
+
+
+def load_previous_summary(path: Path) -> dict[str, Any]:
+    payload = load_object(path, "Previous summary")
+    questions = payload.get("questions")
+    if not isinstance(questions, list) or any(
+        not isinstance(question, dict)
+        or not isinstance(question.get("ask"), str)
+        or not isinstance(question.get("why"), str)
+        or not isinstance(question.get("replies"), list)
+        or not isinstance(question.get("fields"), list)
+        or not all(isinstance(label, str) for label in question["fields"])
+        for question in questions
+    ):
+        raise ValueError("Previous summary must be a fai-form-summary payload with questions")
+    return payload
+
+
 def question_entries(plan: dict[str, Any]) -> list[dict[str, Any]]:
     return [entry for entry in plan["blanks"] if isinstance(entry.get("ask"), str)]
 
@@ -180,6 +231,7 @@ def build_summary(
     plan: dict[str, Any],
     previous_plan: dict[str, Any] | None = None,
     previous_state: dict[str, Any] | None = None,
+    previous_summary: dict[str, Any] | None = None,
     answered: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """Build the deterministic version 1 chat-card payload."""
@@ -198,21 +250,31 @@ def build_summary(
             for entry in question_entries(previous_plan)
             if entry["ask"] in answered
         )
-    for entry in question_sources:
+    recovered = (
+        recovered_question_entries(previous_summary, fields, answered)
+        if previous_summary is not None
+        else []
+    )
+    for entry in [*question_sources, *recovered]:
         ask = entry["ask"]
         if ask not in grouped_questions:
             grouped_questions[ask] = {
                 "ask": ask,
-                "why": entry.get("why", entry["reason"]),
+                "why": entry.get("why", entry.get("reason", "")),
                 "replies": entry.get("replies", []),
                 "field_ids": [],
             }
             question_order.append(ask)
-        if entry["id"] not in grouped_questions[ask]["field_ids"]:
-            grouped_questions[ask]["field_ids"].append(entry["id"])
+        field_id = entry.get("id")
+        if field_id is not None and field_id not in grouped_questions[ask]["field_ids"]:
+            grouped_questions[ask]["field_ids"].append(field_id)
 
+    # Answered and open questions are capped separately, answered first, so a
+    # follow-up's confirmed answers are never crowded out by open questions.
+    answered_order = [ask for ask in question_order if ask in answered][:MAX_QUESTIONS]
+    open_order = [ask for ask in question_order if ask not in answered][:MAX_QUESTIONS]
     questions = []
-    for ask in question_order[:5]:
+    for ask in [*answered_order, *open_order]:
         question = grouped_questions[ask]
         is_answered = ask in answered
         questions.append(
@@ -261,13 +323,16 @@ def build_summary(
         source_plans = [plan]
         if previous_plan is not None:
             source_plans.insert(0, previous_plan)
-        for source_plan in source_plans:
-            for entry in question_entries(source_plan):
-                ask = entry["ask"]
-                if ask in answered:
-                    memberships = answered_memberships.setdefault(entry["id"], [])
-                    if ask not in memberships:
-                        memberships.append(ask)
+        membership_sources = [
+            entry for source_plan in source_plans for entry in question_entries(source_plan)
+        ]
+        membership_sources.extend(entry for entry in recovered if "id" in entry)
+        for entry in membership_sources:
+            ask = entry["ask"]
+            if ask in answered:
+                memberships = answered_memberships.setdefault(entry["id"], [])
+                if ask not in memberships:
+                    memberships.append(ask)
 
         grouped_changes: dict[str, list[dict[str, Any]]] = {}
         ungrouped_changes: list[dict[str, Any]] = []
@@ -297,14 +362,19 @@ def build_summary(
             for entry in ungrouped_changes
         )
 
-    filled_ids = {field_id for field_id, field in fields.items() if has_answer(field)}
-    filled_ids.update(planned)
+    # A field counts as filled by its final value: the planned write when there
+    # is one, otherwise what the form already held. A planned unchecked box is
+    # therefore not filled, the same as an untouched unchecked box.
+    filled = sum(
+        has_answer({"value": planned[field_id]["value"]} if field_id in planned else field)
+        for field_id, field in fields.items()
+    )
     return {
         "version": 1,
         "form": form_name,
         "document": output.name,
         "draft": draft,
-        "filled": len(filled_ids),
+        "filled": filled,
         "total": len(fields),
         "questions": questions,
         "assumptions": assumptions,
@@ -434,6 +504,7 @@ def main() -> None:
     previous = parser.add_mutually_exclusive_group()
     previous.add_argument("--previous-plan", type=Path)
     previous.add_argument("--previous-state", type=Path)
+    parser.add_argument("--previous-summary", type=Path)
     parser.add_argument("--answered", type=Path)
     args = parser.parse_args()
     try:
@@ -453,22 +524,39 @@ def main() -> None:
                 if args.previous_state is not None
                 else None
             )
+            previous_summary = (
+                load_previous_summary(args.previous_summary)
+                if args.previous_summary is not None
+                else None
+            )
             answered = load_answers(args.answered)
             result, state, plan = execute_fill(args.source, args.plan, args.output)
-            summary = build_summary(
-                form_name=args.form_name,
-                output=args.output,
-                draft=args.draft,
-                state=state,
-                plan=plan,
-                previous_plan=previous_plan,
-                previous_state=previous_state,
-                answered=answered,
-            )
-            summary_text = json.dumps(summary, ensure_ascii=False, separators=(",", ":"))
-            args.plan.with_name(f"{args.plan.stem}.summary.json").write_text(
-                summary_text + "\n"
-            )
+            # execute_fill only publishes to a destination that did not exist, so
+            # removing it on a card failure undoes exactly this run and leaves
+            # the same path free for the retry.
+            try:
+                summary = build_summary(
+                    form_name=args.form_name,
+                    output=args.output,
+                    draft=args.draft,
+                    state=state,
+                    plan=plan,
+                    previous_plan=previous_plan,
+                    previous_state=previous_state,
+                    previous_summary=previous_summary,
+                    answered=answered,
+                )
+                summary_text = json.dumps(
+                    summary, ensure_ascii=False, separators=(",", ":")
+                )
+                args.plan.with_name(f"{args.plan.stem}.summary.json").write_text(
+                    summary_text + "\n"
+                )
+            except Exception as exc:
+                args.output.unlink(missing_ok=True)
+                if isinstance(exc, (OSError, ValueError)):
+                    raise
+                raise ValueError(f"Could not build the form summary: {exc!r}") from exc
     except (OSError, ValueError, subprocess.TimeoutExpired) as exc:
         print(json.dumps({"verified": False, "error": str(exc)}))
         raise SystemExit(1) from exc

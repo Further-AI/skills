@@ -556,3 +556,231 @@ def test_legacy_cli_output_and_artifacts_are_unchanged(
         "blanks": plan["blanks"],
     }
     assert not (tmp_path / "plan.summary.json").exists()
+
+
+def _card_cli(tmp_path, monkeypatch, *extra, state=None, plan=None):
+    """Run the helper's card path against a fake native engine."""
+    state = state or {
+        "fields": [{"id": "insured", "label": "Named insured", "kind": "text"}]
+    }
+    plan = plan or {
+        "fields": [{"id": "insured", "value": "Example LLC", "source": "brief"}],
+        "blanks": [],
+    }
+    original = tmp_path / "original.pdf"
+    original.write_bytes(b"original")
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan))
+    output = tmp_path / "output.pdf"
+
+    def native(command, *args):
+        if command == "inspect":
+            return state
+        if command == "fill":
+            Path(args[2]).write_bytes(b"filled")
+        return {
+            "outcomes": [
+                {"id": entry["id"], "placed": True} for entry in plan["fields"]
+            ]
+        }
+
+    monkeypatch.setattr(fill_plan, "native", native)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "fill_plan.py",
+            str(original),
+            str(plan_path),
+            str(output),
+            "--form-name",
+            "ACORD 125",
+            *extra,
+        ],
+    )
+    return output
+
+
+def test_card_failure_removes_the_new_draft_and_allows_a_retry(
+    tmp_path, monkeypatch, capsys
+):
+    previous_plan = tmp_path / "previous-plan.json"
+    previous_plan.write_text(json.dumps({"blanks": []}))
+    output = _card_cli(
+        tmp_path,
+        monkeypatch,
+        "--draft",
+        "2",
+        "--previous-plan",
+        str(previous_plan),
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        fill_plan.main()
+
+    assert exit_info.value.code == 1
+    lines = capsys.readouterr().out.splitlines()
+    assert json.loads(lines[0])["verified"] is False
+    assert "fai-form-summary" not in "\n".join(lines)
+    assert not output.exists()
+
+    previous_plan.write_text(json.dumps({"fields": [], "blanks": []}))
+    fill_plan.main()
+    assert output.exists()
+    assert json.loads(capsys.readouterr().out.splitlines()[0])["verified"] is True
+
+
+def test_recycled_follow_up_rebuilds_answered_cards_from_previous_summary(
+    tmp_path, monkeypatch, capsys
+):
+    ask = "Is the mailing address the same as the premises address?"
+    state = {
+        "fields": [
+            {"id": "mail1", "label": "Mailing address", "kind": "text"},
+            {"id": "mail2", "label": "Mailing city", "kind": "text"},
+        ]
+    }
+    plan = {
+        "fields": [
+            {"id": "mail1", "value": "1200 W Fulton St", "source": "user message"},
+            {"id": "mail2", "value": "Chicago", "source": "user message"},
+        ],
+        "blanks": [],
+    }
+    previous_summary = tmp_path / "previous-summary.json"
+    previous_summary.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "questions": [
+                    {
+                        "ask": ask,
+                        "why": "The documents only list the premises.",
+                        "replies": ["Yes, same", "No, different"],
+                        "fields": ["Mailing address", "Mailing city"],
+                        "status": "open",
+                        "answer": None,
+                    }
+                ],
+            }
+        )
+    )
+    previous_state = tmp_path / "previous-state.json"
+    previous_state.write_text(
+        json.dumps(
+            {
+                "fields": [
+                    {"id": "mail1", "label": "Mailing address", "value": ""},
+                    {"id": "mail2", "label": "Mailing city", "value": ""},
+                ]
+            }
+        )
+    )
+    answers = tmp_path / "answers.json"
+    answers.write_text(json.dumps({ask: "Yes, same"}))
+    _card_cli(
+        tmp_path,
+        monkeypatch,
+        "--draft",
+        "2",
+        "--previous-state",
+        str(previous_state),
+        "--previous-summary",
+        str(previous_summary),
+        "--answered",
+        str(answers),
+        state=state,
+        plan=plan,
+    )
+
+    fill_plan.main()
+
+    summary = json.loads(capsys.readouterr().out.splitlines()[2])
+    assert summary["questions"] == [
+        {
+            "ask": ask,
+            "why": "The documents only list the premises.",
+            "replies": ["Yes, same", "No, different"],
+            "fields": ["Mailing address", "Mailing city"],
+            "status": "answered",
+            "answer": "Yes, same",
+        }
+    ]
+    assert summary["changes"] == [
+        {"label": "Mailing address", "value": "Yes, same", "fields": 2}
+    ]
+
+
+def test_previous_summary_must_carry_questions(tmp_path):
+    path = tmp_path / "previous-summary.json"
+    path.write_text(json.dumps({"version": 1, "questions": [{"ask": "Q"}]}))
+
+    with pytest.raises(ValueError, match="fai-form-summary payload"):
+        fill_plan.load_previous_summary(path)
+
+
+def test_filled_counts_each_field_by_its_final_value():
+    state = {
+        "fields": [
+            {"id": "box_a", "label": "Box A", "kind": "checkbox", "value": False},
+            {"id": "box_b", "label": "Box B", "kind": "checkbox", "value": False},
+            {"id": "box_c", "label": "Box C", "kind": "checkbox", "value": True},
+            {"id": "name", "label": "Name", "kind": "text", "value": ""},
+        ]
+    }
+    plan = {
+        "fields": [
+            {"id": "box_a", "value": False, "source": "brief"},
+            {"id": "box_c", "value": False, "source": "brief"},
+            {"id": "name", "value": "Example LLC", "source": "brief"},
+        ],
+        "blanks": [],
+    }
+
+    summary = fill_plan.build_summary(
+        form_name="ACORD 125",
+        output=Path("ACORD-125.pdf"),
+        draft=1,
+        state=state,
+        plan=plan,
+    )
+
+    assert (summary["filled"], summary["total"]) == (1, 4)
+
+
+def test_answered_cards_are_not_crowded_out_by_five_open_questions():
+    field_ids = [f"f{index}" for index in range(6)]
+    state = {
+        "fields": [
+            {"id": field_id, "label": field_id.upper(), "kind": "text"}
+            for field_id in field_ids
+        ]
+    }
+    answered_ask = "Question 0?"
+    previous = {
+        "fields": [],
+        "blanks": [
+            {"id": "f0", "reason": "missing", "ask": answered_ask, "why": "w"}
+        ],
+    }
+    current = {
+        "fields": [{"id": "f0", "value": "Answer", "source": "user message"}],
+        "blanks": [
+            {"id": field_id, "reason": "missing", "ask": f"Open {field_id}?", "why": "w"}
+            for field_id in field_ids[1:]
+        ],
+    }
+
+    summary = fill_plan.build_summary(
+        form_name="ACORD 125",
+        output=Path("ACORD-125.pdf"),
+        draft=2,
+        state=state,
+        plan=current,
+        previous_plan=previous,
+        answered={answered_ask: "Answer"},
+    )
+
+    statuses = [(question["ask"], question["status"]) for question in summary["questions"]]
+    assert statuses[0] == (answered_ask, "answered")
+    assert [status for _, status in statuses].count("open") == 5

@@ -103,7 +103,9 @@ For the visual check, run `fai-form render <dest> <work>/render` directly when
 that subcommand is available. Otherwise run
 `pdftoppm -png <dest> <work>/render/page` directly. When cards are available,
 these commands replace the `pypdfium2` rendering command in Review and deliver.
-Use the helper options `--form-name "FORM NAME" --draft 1` for the first draft.
+Use the helper options `--form-name "FORM NAME" --draft 1` for the first draft. The
+card names the helper's destination file, so give the destination the filename
+the user should receive and deliver the verified copy under that same name.
 
 Before each phase, post exactly one short sentence. Include the known counts,
 using lines such as “Reading the form and 3 documents…”, “Filling 31 of 350
@@ -126,7 +128,10 @@ recycled, fetch the current version of the delivered draft and run
 `fai-form inspect <current-draft> > <work>/previous-state.json`. Rebuild the
 current plan, then pass `--previous-state <work>/previous-state.json` instead of
 `--previous-plan`; this compares changes with the values actually in the latest
-draft. If the user stops the run, publish nothing. On the next turn, say whether
+draft. Also save the JSON inside the previous turn's `fai-form-summary` block,
+copied from the chat, to `<work>/previous-summary.json` and pass
+`--previous-summary <work>/previous-summary.json` with `--answered`, so the
+answered questions still appear on the card. If the user stops the run, publish nothing. On the next turn, say whether
 an earlier draft remains the latest published version.
 
 If verification still fails after the two repair attempts, reply in one to three
