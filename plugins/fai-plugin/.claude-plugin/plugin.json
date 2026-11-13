@@ -1,0 +1,9 @@
+{
+  "name": "fai",
+  "description": "Operate the FurtherAI platform from Claude Code: workflows, submissions, evaluations, issue triage, account context, and branded customer artifacts.",
+  "version": "0.2.0",
+  "author": {
+    "name": "FurtherAI",
+    "email": "andrew@furtherai.com"
+  }
+}
