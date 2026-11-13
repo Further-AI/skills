@@ -74,7 +74,11 @@ combine a narration line with another sentence.
    the plan has open `missing`, `unclear`, or `only_you` questions, call it exactly
    once with the one to four most important questions. Each question needs a
    plain header of at most 12 characters and two to four short options; the user
-   can type a different answer. Do not call any other interactive question tool.
+   can type a different answer. For a free-text answer (an address, a FEIN, a
+   name), offer the plausible values found in the sources as options; when there
+   are none, offer `Leave blank for now` and `Not applicable`, and say in the
+   question that they can type the answer. Do not call any other interactive
+   question tool.
    If neither tool is available, skip this step and keep the blanks open.
 
    Save the pre-question plan. Apply returned answers to a current plan as filled

@@ -128,11 +128,15 @@ def planned_values(
 
 def humanize_label(label: str) -> str:
     """Turn an AcroForm-style label into short sentence case."""
-    text = re.sub(r"_+", " ", label.strip())
+    raw = label.strip()
+    # A trailing letter is a repeat suffix (`Name_A`, `OwnerIndicator B`) only on
+    # machine-style AcroForm names; in prose labels such as "Plan B" it is the name.
+    machine_style = "_" in raw or re.search(r"[a-z][A-Z]", raw) is not None
+    text = re.sub(r"_+", " ", raw)
     text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text)
     text = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", text)
     text = re.sub(r"\s+", " ", text).strip()
-    suffix = re.search(r"(?:^|\s)([A-Z])$", text)
+    suffix = re.search(r"(?:^|\s)([A-Z])$", text) if machine_style else None
     repeat = ""
     if suffix:
         letter = suffix.group(1)
@@ -251,11 +255,20 @@ def recovered_question_entries(
             "replies": question["replies"],
             "kind": question.get("kind", "only_you"),
         }
-        matched = [
-            (label, by_label[label][0])
-            for label in question["fields"]
-            if len(by_label.get(label, [])) == 1
-        ]
+        field_ids = question.get("field_ids") or []
+        if field_ids and len(field_ids) == len(question["fields"]):
+            # Stable IDs survive a relabelled plan; labels are only for older cards.
+            matched = [
+                (label, field_id)
+                for label, field_id in zip(question["fields"], field_ids, strict=True)
+                if field_id in fields
+            ]
+        else:
+            matched = [
+                (label, by_label[label][0])
+                for label in question["fields"]
+                if len(by_label.get(label, [])) == 1
+            ]
         entries.extend(
             {**base, "id": field_id, "label": label} for label, field_id in matched
         )
@@ -275,6 +288,8 @@ def load_previous_summary(path: Path) -> dict[str, Any]:
         or not isinstance(question.get("fields"), list)
         or question.get("kind", "only_you") not in QUESTION_KINDS
         or not all(isinstance(label, str) for label in question["fields"])
+        or not isinstance(question.get("field_ids", []), list)
+        or not all(isinstance(field_id, str) for field_id in question.get("field_ids", []))
         for question in questions
     ):
         raise ValueError("Previous summary must be a fai-form-summary payload with questions")
@@ -346,44 +361,39 @@ def done_rows(
         if entry["id"] in fields
         and isinstance(entry.get("source"), str)
         and entry["source"].strip()
-        and (
-            isinstance(entry.get("value"), bool)
-            or has_answer({"value": entry.get("value")})
-        )
+        and (entry.get("value") is True or has_answer({"value": entry.get("value")}))
     ]
     candidates.sort(key=lambda item: (done_priority(item[1], item[2]), item[0]))
 
-    rows: list[tuple[int, dict[str, str]]] = []
+    rows: list[tuple[int, int, dict[str, str]]] = []
     consumed: set[str] = set()
 
-    effective = next(
-        (
-            item
-            for item in candidates
-            if "effective date" in entry_label(item[1], item[2]).lower()
-            and not isinstance(item[1]["value"], bool)
-        ),
-        None,
-    )
-    expiration = next(
-        (
-            item
-            for item in candidates
-            if "expiration date" in entry_label(item[1], item[2]).lower()
-            and not isinstance(item[1]["value"], bool)
-        ),
-        None,
-    )
-    if effective is not None and expiration is not None:
-        consumed.update((effective[1]["id"], expiration[1]["id"]))
+    effective = [
+        item
+        for item in candidates
+        if "effective date" in entry_label(item[1], item[2]).lower()
+        and not isinstance(item[1]["value"], bool)
+    ]
+    expiration = [
+        item
+        for item in candidates
+        if "expiration date" in entry_label(item[1], item[2]).lower()
+        and not isinstance(item[1]["value"], bool)
+    ]
+    # Several terms (property, auto, …) cannot be paired safely, so only a single
+    # effective/expiration pair becomes one "Policy period" row.
+    if len(effective) == 1 and len(expiration) == 1:
+        (start_index, start_entry, _), (end_index, end_entry, _) = effective[0], expiration[0]
+        consumed.update((start_entry["id"], end_entry["id"]))
         rows.append(
             (
-                min(effective[0], expiration[0]),
+                1,
+                min(start_index, end_index),
                 {
                     "label": "Policy period",
                     "value": (
-                        f"{display_value(effective[1]['value'])} – "
-                        f"{display_value(expiration[1]['value'])}"
+                        f"{display_value(start_entry['value'])} – "
+                        f"{display_value(end_entry['value'])}"
                     ),
                 },
             )
@@ -403,6 +413,7 @@ def done_rows(
     if business_options:
         rows.append(
             (
+                2,
                 min(business_indexes),
                 {
                     "label": "Lines of business",
@@ -413,6 +424,7 @@ def done_rows(
 
     rows.extend(
         (
+            done_priority(entry, field),
             index,
             {
                 "label": entry_label(entry, field),
@@ -422,24 +434,8 @@ def done_rows(
         for index, entry, field in candidates
         if entry["id"] not in consumed
     )
-    rows.sort(
-        key=lambda item: (
-            0
-            if "named insured" in item[1]["label"].lower()
-            else 1
-            if item[1]["label"] == "Policy period"
-            else 2
-            if item[1]["label"] == "Lines of business"
-            else 3
-            if "fein" in item[1]["label"].lower()
-            or "tax identifier" in item[1]["label"].lower()
-            else 4
-            if "location" in item[1]["label"].lower()
-            else 5,
-            item[0],
-        )
-    )
-    return [row for _, row in rows[:MAX_DONE]]
+    rows.sort(key=lambda item: (item[0], item[1]))
+    return [row for _, _, row in rows[:MAX_DONE]]
 
 
 def changed_fields_from_state(
@@ -550,6 +546,7 @@ def build_summary(
                 "why": question["why"],
                 "replies": question["replies"],
                 "fields": question["field_labels"],
+                "field_ids": question["field_ids"],
                 "status": "answered" if is_answered else "open",
                 "answer": answered[ask] if is_answered else None,
             }

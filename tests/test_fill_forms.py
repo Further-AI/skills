@@ -353,6 +353,7 @@ def test_summary_groups_questions_and_lists_assumptions(tmp_path, monkeypatch, c
                 "why": "The documents only list the premises.",
                 "replies": ["Yes, same", "No, different"],
                 "fields": ["Mailing address", "Mailing city"],
+                "field_ids": ["mail1", "mail2"],
                 "status": "open",
                 "answer": None,
             }
@@ -495,6 +496,7 @@ def test_follow_up_summary_marks_answers_and_groups_changes():
             "why": "The documents only list the premises.",
             "replies": ["Yes, same", "No, different"],
             "fields": ["Mailing address", "Mailing city"],
+            "field_ids": ["mail1", "mail2"],
             "status": "answered",
             "answer": "Yes, same",
         }
@@ -833,6 +835,7 @@ def test_recycled_follow_up_rebuilds_answered_cards_from_previous_summary(
             "kind": "missing",
             "why": "The documents only list the premises.",
             "replies": ["Yes, same", "No, different"],
+            "field_ids": ["mail1", "mail2"],
             "fields": ["Mailing address", "Mailing city"],
             "status": "answered",
             "answer": "Yes, same",
@@ -1024,7 +1027,6 @@ def test_summary_prefers_plan_labels_and_groups_key_done_rows():
         },
         {"label": "FEIN", "value": "12-3456789"},
         {"label": "Locations", "value": "2"},
-        {"label": "Owner indicator (2)", "value": "No"},
     ]
     assert summary["questions"][0]["fields"] == ["Entity code"]
     assert summary["assumptions"][0]["statement"] == "FEIN is 12-3456789"
@@ -1080,6 +1082,7 @@ def test_recycled_follow_up_maps_question_fields_through_plan_labels():
             "why": "No mailing street was supplied.",
             "replies": [],
             "fields": ["Mailing street"],
+            "field_ids": ["ApplicantMailingAddressLine1"],
             "status": "answered",
             "answer": "1200 W Fulton St",
         }
@@ -1215,3 +1218,102 @@ def test_answered_cards_are_not_crowded_out_by_five_open_questions():
 def test_humanize_label_keeps_acronyms() -> None:
     assert fill_plan.humanize_label("NAICS Code") == "NAICS code"
     assert fill_plan.humanize_label("Producer_FEIN_B") == "Producer FEIN (2)"
+
+
+def _done_fields(*specs: tuple[str, str, str]) -> dict[str, dict[str, object]]:
+    return {field_id: {"id": field_id, "label": label, "kind": kind} for field_id, label, kind in specs}
+
+
+def test_done_rows_keep_separate_terms_apart() -> None:
+    fields = _done_fields(
+        ("prop_eff", "Property effective date", "text"),
+        ("auto_eff", "Auto effective date", "text"),
+        ("auto_exp", "Auto expiration date", "text"),
+    )
+    plan = {
+        "fields": [
+            {"id": "prop_eff", "value": "2027-01-01", "source": "dec"},
+            {"id": "auto_eff", "value": "2027-03-01", "source": "dec"},
+            {"id": "auto_exp", "value": "2027-12-31", "source": "dec"},
+        ],
+        "blanks": [],
+    }
+    labels = [row["label"] for row in fill_plan.done_rows(plan, fields)]
+    assert "Policy period" not in labels
+    assert labels == ["Property effective date", "Auto effective date", "Auto expiration date"]
+
+
+def test_done_rows_rank_insured_name_ahead_of_other_fields() -> None:
+    specs = [(f"contact_{n}", f"Contact {n}", "text") for n in range(6)]
+    fields = _done_fields(*specs, ("insured", "Insured Name", "text"))
+    plan = {
+        "fields": [
+            *({"id": field_id, "value": "x", "source": "dec"} for field_id, _, _ in specs),
+            {"id": "insured", "value": "Northstar Cabinet Works LLC", "source": "dec"},
+        ],
+        "blanks": [],
+    }
+    rows = fill_plan.done_rows(plan, fields)
+    assert rows[0] == {"label": "Insured name", "value": "Northstar Cabinet Works LLC"}
+    assert len(rows) == 6
+
+
+def test_done_rows_skip_unchecked_boxes() -> None:
+    specs = [(f"owns_{n}", f"Owns location {n}", "checkbox") for n in range(6)]
+    fields = _done_fields(*specs, ("contact", "Contact name", "text"))
+    plan = {
+        "fields": [
+            *({"id": field_id, "value": False, "source": "sov"} for field_id, _, _ in specs),
+            {"id": "contact", "value": "Alex", "source": "dec"},
+        ],
+        "blanks": [],
+    }
+    assert fill_plan.done_rows(plan, fields) == [{"label": "Contact name", "value": "Alex"}]
+
+
+def test_humanize_label_keeps_letters_in_prose_labels() -> None:
+    assert fill_plan.humanize_label("Plan B") == "Plan b"
+    assert fill_plan.humanize_label("OwnerIndicator B") == "Owner indicator (2)"
+    assert fill_plan.humanize_label("Owner_Indicator_C") == "Owner indicator (3)"
+
+
+def test_recovery_prefers_stable_field_ids_over_labels() -> None:
+    fields = {
+        "ApplicantMailingAddressLine1": {
+            "id": "ApplicantMailingAddressLine1",
+            "label": "Applicant Mailing Address Line1",
+            "kind": "text",
+        }
+    }
+    previous_summary = {
+        "questions": [
+            {
+                "ask": "What is the mailing street?",
+                "why": "No mailing street was supplied.",
+                "replies": [],
+                "fields": ["Mailing street"],
+                "field_ids": ["ApplicantMailingAddressLine1"],
+                "kind": "missing",
+            }
+        ]
+    }
+    relabelled_plan = {
+        "fields": [
+            {
+                "id": "ApplicantMailingAddressLine1",
+                "label": "Street address",
+                "value": "1200 W Fulton St",
+                "source": "user",
+            }
+        ],
+        "blanks": [],
+    }
+    entries = fill_plan.recovered_question_entries(
+        previous_summary,
+        fields,
+        {"What is the mailing street?": "1200 W Fulton St"},
+        relabelled_plan,
+    )
+    assert [(entry["id"], entry["label"]) for entry in entries] == [
+        ("ApplicantMailingAddressLine1", "Mailing street")
+    ]
