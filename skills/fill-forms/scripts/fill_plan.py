@@ -368,30 +368,31 @@ def done_rows(
     rows: list[tuple[int, int, dict[str, str]]] = []
     consumed: set[str] = set()
 
-    # Dates pair into one period row only when their coverage qualifier matches
-    # ("Policy effective date" + "Policy expiration date"); a property start and an
-    # auto end describe different terms, and several terms per qualifier cannot be
-    # paired safely, so those keep their own labelled rows.
+    # Dates pair into one period row only when their labels match once the
+    # effective/expiration word is removed ("Policy effective date" + "Policy
+    # expiration date"). Text before and after must both agree, so a property start
+    # and an auto end, or building 1 and building 2, keep their own rows; several
+    # terms under one key cannot be paired safely either.
     by_qualifier: dict[str, dict[str, list[tuple[int, dict[str, Any], dict[str, Any]]]]] = {}
     for item in candidates:
         if isinstance(item[1]["value"], bool):
             continue
-        match = re.match(
-            r"^(.*?)\s*(effective|expiration) date\b", entry_label(item[1], item[2]), re.I
-        )
+        label = entry_label(item[1], item[2])
+        match = re.match(r"^(.*?)\s*(effective|expiration) date\b(.*)$", label, re.I)
         if match:
-            qualifier = match.group(1).strip().lower()
+            key = " ".join(f"{match.group(1)} date{match.group(3)}".lower().split())
             side = match.group(2).lower()
-            by_qualifier.setdefault(qualifier, {}).setdefault(side, []).append(item)
-    for qualifier, sides in by_qualifier.items():
+            by_qualifier.setdefault(key, {}).setdefault(side, []).append(item)
+    for key, sides in by_qualifier.items():
         starts, ends = sides.get("effective", []), sides.get("expiration", [])
         if len(starts) != 1 or len(ends) != 1:
             continue
         (start_index, start_entry, _), (end_index, end_entry, _) = starts[0], ends[0]
         consumed.update((start_entry["id"], end_entry["id"]))
+        qualifier = key.removesuffix(" date").replace(" date ", " ").strip()
         label = (
             "Policy period"
-            if qualifier in ("", "policy", "proposed")
+            if qualifier in ("", "date", "policy", "proposed")
             else f"{qualifier[:1].upper()}{qualifier[1:]} period"
         )
         rows.append(

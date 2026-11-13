@@ -1342,3 +1342,28 @@ def test_done_rows_pair_dates_only_for_the_same_coverage() -> None:
     labels = [row["label"] for row in rows]
     assert "Property effective date" in labels
     assert "Auto expiration date" in labels
+
+
+def test_done_rows_keep_different_buildings_apart() -> None:
+    fields = _done_fields(
+        ("b1_eff", "Property effective date (building 1)", "text"),
+        ("b2_exp", "Property expiration date (building 2)", "text"),
+        ("auto_eff", "Auto effective date", "text"),
+        ("b3_eff", "Property effective date (building 3)", "text"),
+        ("b3_exp", "Property expiration date (building 3)", "text"),
+    )
+    plan = {
+        "fields": [
+            {"id": "b1_eff", "value": "2027-01-01", "source": "sov"},
+            {"id": "b2_exp", "value": "2027-12-31", "source": "sov"},
+            {"id": "auto_eff", "value": "2027-03-01", "source": "dec"},
+            {"id": "b3_eff", "value": "2027-02-01", "source": "sov"},
+            {"id": "b3_exp", "value": "2028-02-01", "source": "sov"},
+        ],
+        "blanks": [],
+    }
+    rows = fill_plan.done_rows(plan, fields)
+    labels = [row["label"] for row in rows]
+    assert "Property effective date (building 1)" in labels
+    assert "Property expiration date (building 2)" in labels
+    assert {"label": "Property (building 3) period", "value": "2027-02-01 – 2028-02-01"} in rows
