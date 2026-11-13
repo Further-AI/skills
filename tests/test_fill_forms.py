@@ -50,6 +50,36 @@ def test_scope_only_contains_source_backed_writes(state, plan):
 
 
 @pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("Policy EffectiveDate", "Policy effective date"),
+        ("NamedInsured TaxIdentifier", "Named insured tax identifier"),
+        (
+            "CommercialStructure InsuredInterest OwnerIndicator A",
+            "Commercial structure insured interest owner indicator",
+        ),
+        (
+            "CommercialStructure InsuredInterest OwnerIndicator B",
+            "Commercial structure insured interest owner indicator (2)",
+        ),
+        ("OwnerIndicator_C", "Owner indicator (3)"),
+    ],
+)
+def test_humanize_inspection_labels(raw, expected):
+    assert fill_plan.humanize_label(raw) == expected
+
+
+def test_plan_labels_are_validated_and_optional(state, plan):
+    plan["fields"][0]["label"] = "Named insured"
+    plan["blanks"][0]["label"] = "Fax number"
+    assert fill_plan.planned_values(plan, state) == {"insured": "Example LLC"}
+
+    plan["blanks"][0]["label"] = " "
+    with pytest.raises(ValueError, match="plan label"):
+        fill_plan.planned_values(plan, state)
+
+
+@pytest.mark.parametrize(
     "mutation",
     ["unknown", "duplicate", "blank_reason", "signature", "readonly", "empty"],
 )
@@ -893,6 +923,203 @@ def test_done_rows_prefer_key_answers_and_cap_at_six():
     ]
 
 
+def test_summary_prefers_plan_labels_and_groups_key_done_rows():
+    state = {
+        "fields": [
+            {"id": "NamedInsured", "kind": "text"},
+            {"id": "PolicyEffectiveDate", "kind": "text"},
+            {"id": "PolicyExpirationDate", "kind": "text"},
+            {"id": "PolicyLineOfBusinessCommercialGeneralLiability", "kind": "checkbox"},
+            {"id": "PolicyLineOfBusinessCommercialAuto", "kind": "checkbox"},
+            {"id": "PolicyLineOfBusinessWorkersCompensation", "kind": "checkbox"},
+            {"id": "NamedInsuredTaxIdentifier", "kind": "text"},
+            {"id": "LocationCount", "kind": "text"},
+            {"id": "OwnerIndicatorB", "kind": "checkbox"},
+            {"id": "UnresolvedCode", "kind": "text"},
+        ]
+    }
+    plan = {
+        "fields": [
+            {
+                "id": "NamedInsured",
+                "label": "Named insured",
+                "value": "Example LLC",
+                "source": "application",
+            },
+            {
+                "id": "PolicyEffectiveDate",
+                "label": "Effective date",
+                "value": "2027-01-01",
+                "source": "application",
+            },
+            {
+                "id": "PolicyExpirationDate",
+                "label": "Expiration date",
+                "value": "2028-01-01",
+                "source": "application",
+            },
+            {
+                "id": "PolicyLineOfBusinessCommercialGeneralLiability",
+                "label": "Lines of business: General liability",
+                "value": True,
+                "source": "application",
+            },
+            {
+                "id": "PolicyLineOfBusinessCommercialAuto",
+                "label": "Lines of business: Commercial auto",
+                "value": True,
+                "source": "application",
+            },
+            {
+                "id": "PolicyLineOfBusinessWorkersCompensation",
+                "label": "Lines of business: Workers compensation",
+                "value": False,
+                "source": "application",
+            },
+            {
+                "id": "NamedInsuredTaxIdentifier",
+                "label": "FEIN",
+                "value": "12-3456789",
+                "source": "W-9",
+                "assumption": "Taken from the current W-9",
+            },
+            {
+                "id": "LocationCount",
+                "label": "Locations",
+                "value": "2",
+                "source": "schedule",
+            },
+            {
+                "id": "OwnerIndicatorB",
+                "value": False,
+                "source": "application",
+            },
+        ],
+        "blanks": [
+            {
+                "id": "UnresolvedCode",
+                "label": "Entity code",
+                "reason": "The sources conflict",
+                "ask": "Which entity code is current?",
+                "why": "Two supplied forms disagree.",
+                "kind": "unclear",
+            }
+        ],
+    }
+
+    summary = fill_plan.build_summary(
+        form_name="ACORD 125",
+        output=Path("filled.pdf"),
+        draft=1,
+        state=state,
+        plan=plan,
+    )
+
+    assert summary["done"] == [
+        {"label": "Named insured", "value": "Example LLC"},
+        {"label": "Policy period", "value": "2027-01-01 – 2028-01-01"},
+        {
+            "label": "Lines of business",
+            "value": "General liability, Commercial auto",
+        },
+        {"label": "FEIN", "value": "12-3456789"},
+        {"label": "Locations", "value": "2"},
+        {"label": "Owner indicator (2)", "value": "No"},
+    ]
+    assert summary["questions"][0]["fields"] == ["Entity code"]
+    assert summary["assumptions"][0]["statement"] == "FEIN is 12-3456789"
+
+
+def test_recycled_follow_up_maps_question_fields_through_plan_labels():
+    ask = "What is the mailing street?"
+    state = {
+        "fields": [
+            {"id": "ApplicantMailingAddressLine1", "kind": "text", "value": ""}
+        ]
+    }
+    plan = {
+        "fields": [
+            {
+                "id": "ApplicantMailingAddressLine1",
+                "label": "Mailing street",
+                "value": "1200 W Fulton St",
+                "source": "AskUserQuestion answer: 1200 W Fulton St",
+            }
+        ],
+        "blanks": [],
+    }
+    previous_summary = {
+        "version": 1,
+        "questions": [
+            {
+                "ask": ask,
+                "kind": "missing",
+                "why": "No mailing street was supplied.",
+                "replies": [],
+                "fields": ["Mailing street"],
+                "status": "open",
+                "answer": None,
+            }
+        ],
+    }
+
+    summary = fill_plan.build_summary(
+        form_name="ACORD 125",
+        output=Path("filled.pdf"),
+        draft=1,
+        state=state,
+        plan=plan,
+        previous_summary=previous_summary,
+        answered={ask: "1200 W Fulton St"},
+    )
+
+    assert summary["questions"] == [
+        {
+            "ask": ask,
+            "kind": "missing",
+            "why": "No mailing street was supplied.",
+            "replies": [],
+            "fields": ["Mailing street"],
+            "status": "answered",
+            "answer": "1200 W Fulton St",
+        }
+    ]
+
+
+def test_changes_prefer_current_plan_label():
+    state = {"fields": [{"id": "TotalPayroll", "kind": "text"}]}
+    previous = {
+        "fields": [
+            {"id": "TotalPayroll", "value": "$4,000,000", "source": "old SOV"}
+        ],
+        "blanks": [],
+    }
+    current = {
+        "fields": [
+            {
+                "id": "TotalPayroll",
+                "label": "Annual payroll",
+                "value": "$4,820,000",
+                "source": "new SOV",
+            }
+        ],
+        "blanks": [],
+    }
+
+    summary = fill_plan.build_summary(
+        form_name="ACORD 125",
+        output=Path("filled.pdf"),
+        draft=2,
+        state=state,
+        plan=current,
+        previous_plan=previous,
+    )
+
+    assert summary["changes"] == [
+        {"label": "Annual payroll", "value": "$4,820,000", "fields": 1}
+    ]
+
+
 def test_question_kinds_are_explicit_or_deterministically_inferred(state, plan):
     state["fields"].extend(
         [
@@ -983,3 +1210,8 @@ def test_answered_cards_are_not_crowded_out_by_five_open_questions():
     statuses = [(question["ask"], question["status"]) for question in summary["questions"]]
     assert statuses[0] == (answered_ask, "answered")
     assert [status for _, status in statuses].count("open") == 5
+
+
+def test_humanize_label_keeps_acronyms() -> None:
+    assert fill_plan.humanize_label("NAICS Code") == "NAICS code"
+    assert fill_plan.humanize_label("Producer_FEIN_B") == "Producer FEIN (2)"

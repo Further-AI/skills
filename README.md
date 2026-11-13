@@ -180,6 +180,11 @@ summary cards. After a successful verified fill, `fill_plan.py` then emits the
 fenced `fai-form-summary` payload automatically; explicit summary options remain
 available for local use and tests.
 
+Fill plans may add an optional human-facing `label` to every entry in `fields`
+and `blanks`, for example `{"id":"tax_id","label":"FEIN",...}`. Summary cards
+prefer this label to inspection metadata, while native filling continues to use
+the inspected `id`.
+
 ## Development
 
 Bundle validation lives in [scripts/skill_bundle.py](scripts/skill_bundle.py), complete
