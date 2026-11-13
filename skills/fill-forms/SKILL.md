@@ -81,8 +81,11 @@ combine a narration line with another sentence.
    question tool.
    If neither tool is available, skip this step and keep the blanks open.
 
-   Save the pre-question plan. Apply returned answers to a current plan as filled
-   fields and cite the user's returned answer in each `source`. Leave questions
+   Save the pre-question plan. Apply substantive returned answers to a current
+   plan as filled fields and cite the user's returned answer in each `source`.
+   `Leave blank for now`, `Not applicable`, and any other answer that declines or
+   defers are not answers: keep those entries in `blanks` (record the reason) and
+   leave them out of the filled fields and the answers JSON. Leave questions
    beyond four, skipped questions, and expired questions as blanks with `ask`,
    `why`, `kind`, and `replies`. Write an answers JSON object that maps each
    answered `ask` exactly to its returned answer. On this initial run, pass the
@@ -123,8 +126,7 @@ or publish an unverified file.
 
 ## Summary blocks and follow-ups
 
-Run these commands directly with these stable shapes; do not wrap them in another
-script:
+Run these commands directly; do not wrap them in another script:
 
 ```bash
 fai-form inspect <template> > <work>/original-state.json

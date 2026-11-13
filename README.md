@@ -170,15 +170,15 @@ Metadata field lengths follow the [Agent Skills specification](https://agentskil
 ### Narrate each phase
 
 Keep user-visible progress lines short and place them immediately before the work
-they describe. The `fill-forms` step commands are a contract with the chat summary
-card and must stay stable, including the `fai-form inspect`,
-`python scripts/fill_plan.py`, and page-rendering command shapes; update the card
-integration before changing or wrapping them.
+they describe. The chat shows them in its normal status line and step list; the
+summary card reads only the fenced `fai-form-summary` block, never the step
+commands, so commands may be prefixed or reworded without breaking it.
 
-The backend sets `FAI_FORM_SUMMARY_CARDS=1` exactly when the chat renders form
-summary cards. After a successful verified fill, `fill_plan.py` then emits the
-fenced `fai-form-summary` payload automatically; explicit summary options remain
-available for local use and tests.
+`fill_plan.py` emits that block after a successful verified fill whenever
+`FAI_FORM_SUMMARY_CARDS=1`. The backend sets it on e2b turns that render cards;
+agent-factory turns instead carry the line `Form summary cards: available.` in
+their turn context, and the skill then sets the variable on its helper command.
+Explicit summary options remain available for local use and tests.
 
 Fill plans may add an optional human-facing `label` to every entry in `fields`
 and `blanks`, for example `{"id":"tax_id","label":"FEIN",...}`. Summary cards

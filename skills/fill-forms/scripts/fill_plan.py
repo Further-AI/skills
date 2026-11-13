@@ -368,29 +368,38 @@ def done_rows(
     rows: list[tuple[int, int, dict[str, str]]] = []
     consumed: set[str] = set()
 
-    effective = [
-        item
-        for item in candidates
-        if "effective date" in entry_label(item[1], item[2]).lower()
-        and not isinstance(item[1]["value"], bool)
-    ]
-    expiration = [
-        item
-        for item in candidates
-        if "expiration date" in entry_label(item[1], item[2]).lower()
-        and not isinstance(item[1]["value"], bool)
-    ]
-    # Several terms (property, auto, …) cannot be paired safely, so only a single
-    # effective/expiration pair becomes one "Policy period" row.
-    if len(effective) == 1 and len(expiration) == 1:
-        (start_index, start_entry, _), (end_index, end_entry, _) = effective[0], expiration[0]
+    # Dates pair into one period row only when their coverage qualifier matches
+    # ("Policy effective date" + "Policy expiration date"); a property start and an
+    # auto end describe different terms, and several terms per qualifier cannot be
+    # paired safely, so those keep their own labelled rows.
+    by_qualifier: dict[str, dict[str, list[tuple[int, dict[str, Any], dict[str, Any]]]]] = {}
+    for item in candidates:
+        if isinstance(item[1]["value"], bool):
+            continue
+        match = re.match(
+            r"^(.*?)\s*(effective|expiration) date\b", entry_label(item[1], item[2]), re.I
+        )
+        if match:
+            qualifier = match.group(1).strip().lower()
+            side = match.group(2).lower()
+            by_qualifier.setdefault(qualifier, {}).setdefault(side, []).append(item)
+    for qualifier, sides in by_qualifier.items():
+        starts, ends = sides.get("effective", []), sides.get("expiration", [])
+        if len(starts) != 1 or len(ends) != 1:
+            continue
+        (start_index, start_entry, _), (end_index, end_entry, _) = starts[0], ends[0]
         consumed.update((start_entry["id"], end_entry["id"]))
+        label = (
+            "Policy period"
+            if qualifier in ("", "policy", "proposed")
+            else f"{qualifier[:1].upper()}{qualifier[1:]} period"
+        )
         rows.append(
             (
                 1,
                 min(start_index, end_index),
                 {
-                    "label": "Policy period",
+                    "label": label,
                     "value": (
                         f"{display_value(start_entry['value'])} – "
                         f"{display_value(end_entry['value'])}"

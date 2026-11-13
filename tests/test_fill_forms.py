@@ -1238,9 +1238,11 @@ def test_done_rows_keep_separate_terms_apart() -> None:
         ],
         "blanks": [],
     }
-    labels = [row["label"] for row in fill_plan.done_rows(plan, fields)]
-    assert "Policy period" not in labels
-    assert labels == ["Property effective date", "Auto effective date", "Auto expiration date"]
+    rows = fill_plan.done_rows(plan, fields)
+    assert rows == [
+        {"label": "Property effective date", "value": "2027-01-01"},
+        {"label": "Auto period", "value": "2027-03-01 – 2027-12-31"},
+    ]
 
 
 def test_done_rows_rank_insured_name_ahead_of_other_fields() -> None:
@@ -1317,3 +1319,26 @@ def test_recovery_prefers_stable_field_ids_over_labels() -> None:
     assert [(entry["id"], entry["label"]) for entry in entries] == [
         ("ApplicantMailingAddressLine1", "Mailing street")
     ]
+
+
+def test_done_rows_pair_dates_only_for_the_same_coverage() -> None:
+    fields = _done_fields(
+        ("prop_eff", "Property effective date", "text"),
+        ("auto_exp", "Auto expiration date", "text"),
+        ("pol_eff", "Policy effective date", "text"),
+        ("pol_exp", "Policy expiration date", "text"),
+    )
+    plan = {
+        "fields": [
+            {"id": "prop_eff", "value": "2027-01-01", "source": "dec"},
+            {"id": "auto_exp", "value": "2027-12-31", "source": "dec"},
+            {"id": "pol_eff", "value": "2027-01-01", "source": "quote"},
+            {"id": "pol_exp", "value": "2028-01-01", "source": "quote"},
+        ],
+        "blanks": [],
+    }
+    rows = fill_plan.done_rows(plan, fields)
+    assert {"label": "Policy period", "value": "2027-01-01 – 2028-01-01"} in rows
+    labels = [row["label"] for row in rows]
+    assert "Property effective date" in labels
+    assert "Auto expiration date" in labels
