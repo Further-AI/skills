@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -76,11 +77,18 @@ def planned_values(
     for entry in plan["blanks"]:
         if (
             not {"id", "reason"} <= set(entry)
-            or not set(entry) <= {"id", "reason", "ask", "why", "replies"}
+            or not set(entry)
+            <= {"id", "reason", "ask", "why", "replies", "kind", "source"}
             or not isinstance(entry["reason"], str)
             or not entry["reason"].strip()
         ):
             raise ValueError("Every requested blank requires a reason")
+        if entry.get("kind") not in {None, "missing", "unclear", "only_you"}:
+            raise ValueError("Question kind must be missing, unclear, or only_you")
+        if "source" in entry and (
+            not isinstance(entry["source"], str) or not entry["source"].strip()
+        ):
+            raise ValueError("Every blank source requires a nonempty reference")
         if "ask" in entry and (
             not isinstance(entry["ask"], str) or not entry["ask"].strip()
         ):
@@ -130,6 +138,24 @@ def has_answer(field: dict[str, Any]) -> bool:
 
 
 MAX_QUESTIONS = 5
+MAX_DONE = 6
+QUESTION_KINDS = {"missing", "unclear", "only_you"}
+
+
+def question_kind(entry: dict[str, Any]) -> str:
+    """Return an explicit question kind or classify a plan blank."""
+    explicit = entry.get("kind")
+    if explicit in QUESTION_KINDS:
+        return explicit
+    reason = entry.get("reason", "")
+    if isinstance(reason, str) and re.search(r"\b(?:conflict\w*|ambigu\w*)\b", reason, re.I):
+        return "unclear"
+    source = entry.get("source")
+    if isinstance(entry.get("ask"), str) and not (
+        isinstance(source, str) and source.strip()
+    ):
+        return "missing"
+    return "only_you"
 
 
 def recovered_question_entries(
@@ -152,7 +178,12 @@ def recovered_question_entries(
         ask = question["ask"]
         if ask not in answered:
             continue
-        base = {"ask": ask, "why": question["why"], "replies": question["replies"]}
+        base = {
+            "ask": ask,
+            "why": question["why"],
+            "replies": question["replies"],
+            "kind": question.get("kind", "only_you"),
+        }
         matched = [
             by_label[label][0]
             for label in question["fields"]
@@ -173,15 +204,74 @@ def load_previous_summary(path: Path) -> dict[str, Any]:
         or not isinstance(question.get("why"), str)
         or not isinstance(question.get("replies"), list)
         or not isinstance(question.get("fields"), list)
+        or question.get("kind", "only_you") not in QUESTION_KINDS
         or not all(isinstance(label, str) for label in question["fields"])
         for question in questions
     ):
         raise ValueError("Previous summary must be a fai-form-summary payload with questions")
+    draft = payload.get("draft")
+    if draft is not None and (
+        not isinstance(draft, int) or isinstance(draft, bool) or draft < 1
+    ):
+        raise ValueError("Previous summary draft must be a positive integer")
     return payload
 
 
 def question_entries(plan: dict[str, Any]) -> list[dict[str, Any]]:
     return [entry for entry in plan["blanks"] if isinstance(entry.get("ask"), str)]
+
+
+def done_priority(field: dict[str, Any]) -> int:
+    """Rank the most useful source-backed answers for the compact card."""
+    text = f"{field_label(field)} {field.get('id', '')}".lower().replace("_", " ")
+    if "named insured" in text or "insured name" in text:
+        return 0
+    if any(
+        phrase in text
+        for phrase in (
+            "policy period",
+            "effective date",
+            "expiration date",
+            "policy effective",
+            "policy expiration",
+        )
+    ):
+        return 1
+    if "line of business" in text or "lines of business" in text:
+        return 2
+    if any(
+        phrase in text
+        for phrase in (
+            "location count",
+            "locations count",
+            "number of locations",
+            "no. of locations",
+        )
+    ):
+        return 3
+    return 4
+
+
+def done_rows(
+    plan: dict[str, Any], fields: dict[str, dict[str, Any]]
+) -> list[dict[str, str]]:
+    """Return up to six important filled, source-backed answers."""
+    candidates = [
+        (index, entry, fields[entry["id"]])
+        for index, entry in enumerate(plan["fields"])
+        if entry["id"] in fields
+        and isinstance(entry.get("source"), str)
+        and entry["source"].strip()
+        and has_answer({"value": entry.get("value")})
+    ]
+    candidates.sort(key=lambda item: (done_priority(item[2]), item[0]))
+    return [
+        {
+            "label": field_label(field),
+            "value": display_value(entry["value"]),
+        }
+        for _, entry, field in candidates[:MAX_DONE]
+    ]
 
 
 def changed_fields_from_state(
@@ -260,11 +350,15 @@ def build_summary(
         if ask not in grouped_questions:
             grouped_questions[ask] = {
                 "ask": ask,
+                "kind": question_kind(entry),
                 "why": entry.get("why", entry.get("reason", "")),
                 "replies": entry.get("replies", []),
                 "field_ids": [],
             }
             question_order.append(ask)
+        elif question_kind(entry) == "unclear":
+            # If one grouped field is ambiguous, the combined question is too.
+            grouped_questions[ask]["kind"] = "unclear"
         field_id = entry.get("id")
         if field_id is not None and field_id not in grouped_questions[ask]["field_ids"]:
             grouped_questions[ask]["field_ids"].append(field_id)
@@ -280,6 +374,7 @@ def build_summary(
         questions.append(
             {
                 "ask": ask,
+                "kind": question["kind"],
                 "why": question["why"],
                 "replies": question["replies"],
                 "fields": [
@@ -376,6 +471,7 @@ def build_summary(
         "draft": draft,
         "filled": filled,
         "total": len(fields),
+        "done": done_rows(plan, fields),
         "questions": questions,
         "assumptions": assumptions,
         "changes": changes,
@@ -412,6 +508,8 @@ def execute_fill(
         raise ValueError(
             "Source and destination must have the same supported PDF or DOCX format"
         )
+    if source.name.casefold() == output.name.casefold():
+        raise ValueError("Destination filename must differ from the template filename")
     if source.resolve() == output.resolve() or output.exists():
         raise ValueError(
             "Use a new destination; the original and existing outputs are preserved"
@@ -494,13 +592,47 @@ def positive_int(value: str) -> int:
     return parsed
 
 
+def inferred_form_name(source: Path, state: dict[str, Any]) -> str:
+    """Infer a readable form name from inspection metadata or the template name."""
+    containers = [state]
+    for key in ("metadata", "document"):
+        nested = state.get(key)
+        if isinstance(nested, dict):
+            containers.append(nested)
+    for container in containers:
+        for key in ("form_name", "title", "document_title"):
+            value = container.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+    readable_stem = re.sub(r"[_-]+", " ", source.stem)
+    readable_stem = re.sub(r"\s+", " ", readable_stem).strip()
+    return readable_stem or source.stem
+
+
+def summary_draft(
+    explicit: int | None,
+    *,
+    previous_plan: dict[str, Any] | None,
+    previous_state: dict[str, Any] | None,
+    previous_summary: dict[str, Any] | None,
+) -> int:
+    """Use an explicit draft, otherwise advance a supplied previous draft."""
+    if explicit is not None:
+        return explicit
+    if previous_summary is not None and isinstance(previous_summary.get("draft"), int):
+        return previous_summary["draft"] + 1
+    if any(item is not None for item in (previous_plan, previous_state, previous_summary)):
+        return 2
+    return 1
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
     parser.add_argument("plan", type=Path)
     parser.add_argument("output", type=Path)
     parser.add_argument("--form-name")
-    parser.add_argument("--draft", type=positive_int, default=1)
+    parser.add_argument("--draft", type=positive_int)
     previous = parser.add_mutually_exclusive_group()
     previous.add_argument("--previous-plan", type=Path)
     previous.add_argument("--previous-state", type=Path)
@@ -509,10 +641,14 @@ def main() -> None:
     args = parser.parse_args()
     try:
         summary = None
-        if args.form_name is None:
+        summary_enabled = (
+            args.form_name is not None
+            or os.environ.get("FAI_FORM_SUMMARY_CARDS") == "1"
+        )
+        if not summary_enabled:
             result = fill(args.source, args.plan, args.output)
         else:
-            if not args.form_name.strip():
+            if args.form_name is not None and not args.form_name.strip():
                 raise ValueError("Form name must be nonempty")
             previous_plan = (
                 load_object(args.previous_plan, "Previous plan")
@@ -531,14 +667,25 @@ def main() -> None:
             )
             answered = load_answers(args.answered)
             result, state, plan = execute_fill(args.source, args.plan, args.output)
+            form_name = (
+                args.form_name.strip()
+                if args.form_name is not None
+                else inferred_form_name(args.source, state)
+            )
+            draft = summary_draft(
+                args.draft,
+                previous_plan=previous_plan,
+                previous_state=previous_state,
+                previous_summary=previous_summary,
+            )
             # execute_fill only publishes to a destination that did not exist, so
             # removing it on a card failure undoes exactly this run and leaves
             # the same path free for the retry.
             try:
                 summary = build_summary(
-                    form_name=args.form_name,
+                    form_name=form_name,
                     output=args.output,
-                    draft=args.draft,
+                    draft=draft,
                     state=state,
                     plan=plan,
                     previous_plan=previous_plan,

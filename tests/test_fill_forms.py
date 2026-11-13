@@ -130,6 +130,25 @@ def test_existing_destination_is_preserved(tmp_path, monkeypatch):
     assert output.read_bytes() == b"prior result"
 
 
+def test_destination_filename_must_differ_from_template(tmp_path, monkeypatch):
+    source_dir = tmp_path / "source"
+    delivery_dir = tmp_path / "delivery"
+    source_dir.mkdir()
+    delivery_dir.mkdir()
+    original = source_dir / "ACORD_125.pdf"
+    original.write_bytes(b"original")
+    output = delivery_dir / "ACORD_125.pdf"
+    monkeypatch.setattr(
+        fill_plan, "native", lambda *args: pytest.fail("must fail before inspection")
+    )
+
+    with pytest.raises(ValueError, match="filename must differ"):
+        fill_plan.fill(original, tmp_path / "plan.json", output)
+
+    assert original.read_bytes() == b"original"
+    assert not output.exists()
+
+
 @pytest.mark.parametrize("stdout,returncode", [("{}", 1), ("not json", 0), ("[]", 0)])
 def test_native_command_errors_cannot_be_treated_as_success(
     monkeypatch, stdout, returncode
@@ -296,9 +315,11 @@ def test_summary_groups_questions_and_lists_assumptions(tmp_path, monkeypatch, c
         "draft": 1,
         "filled": 2,
         "total": 5,
+        "done": [{"label": "Named insured", "value": "Example LLC"}],
         "questions": [
             {
                 "ask": "Is the mailing address the same as the premises address?",
+                "kind": "missing",
                 "why": "The documents only list the premises.",
                 "replies": ["Yes, same", "No, different"],
                 "fields": ["Mailing address", "Mailing city"],
@@ -316,6 +337,82 @@ def test_summary_groups_questions_and_lists_assumptions(tmp_path, monkeypatch, c
     }
     assert json.loads((work / "plan.summary.json").read_text()) == summary
     assert list(delivery.iterdir()) == [output]
+
+
+def test_summary_env_enables_block_with_inferred_defaults(
+    tmp_path, monkeypatch, capsys
+):
+    state = {
+        "fields": [
+            {"id": "insured", "label": "Named insured", "kind": "text", "value": ""}
+        ]
+    }
+    plan = {
+        "fields": [
+            {"id": "insured", "value": "Example LLC", "source": "brief.txt"}
+        ],
+        "blanks": [],
+    }
+    original = tmp_path / "ACORD_125.pdf"
+    original.write_bytes(b"original")
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(plan))
+    output = tmp_path / "ACORD 125 - Example LLC (filled).pdf"
+
+    def native(command, *args):
+        if command == "inspect":
+            return state
+        if command == "fill":
+            Path(args[2]).write_bytes(b"filled")
+        return {"outcomes": [{"id": "insured", "placed": True}]}
+
+    monkeypatch.setattr(fill_plan, "native", native)
+    monkeypatch.setenv("FAI_FORM_SUMMARY_CARDS", "1")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["fill_plan.py", str(original), str(plan_path), str(output)],
+    )
+
+    fill_plan.main()
+
+    lines = capsys.readouterr().out.splitlines()
+    assert lines[1] == "```fai-form-summary"
+    summary = json.loads(lines[2])
+    assert (summary["form"], summary["draft"]) == ("ACORD 125", 1)
+    assert summary["done"] == [
+        {"label": "Named insured", "value": "Example LLC"}
+    ]
+
+
+def test_summary_defaults_advance_previous_draft():
+    assert fill_plan.summary_draft(
+        None,
+        previous_plan={"fields": [], "blanks": []},
+        previous_state=None,
+        previous_summary=None,
+    ) == 2
+    assert fill_plan.summary_draft(
+        None,
+        previous_plan=None,
+        previous_state={},
+        previous_summary={"draft": 4},
+    ) == 5
+    assert fill_plan.summary_draft(
+        9,
+        previous_plan={},
+        previous_state=None,
+        previous_summary={"draft": 4},
+    ) == 9
+
+
+def test_inferred_form_name_prefers_inspection_title():
+    assert (
+        fill_plan.inferred_form_name(
+            Path("uploaded_template.pdf"), {"title": "ACORD 125"}
+        )
+        == "ACORD 125"
+    )
 
 
 def test_follow_up_summary_marks_answers_and_groups_changes():
@@ -364,6 +461,7 @@ def test_follow_up_summary_marks_answers_and_groups_changes():
     assert summary["questions"] == [
         {
             "ask": ask,
+            "kind": "missing",
             "why": "The documents only list the premises.",
             "replies": ["Yes, same", "No, different"],
             "fields": ["Mailing address", "Mailing city"],
@@ -526,6 +624,7 @@ def test_summary_failure_prints_no_card(tmp_path, monkeypatch, capsys):
 def test_legacy_cli_output_and_artifacts_are_unchanged(
     tmp_path, monkeypatch, capsys, state, plan
 ):
+    monkeypatch.delenv("FAI_FORM_SUMMARY_CARDS", raising=False)
     original = tmp_path / "original.pdf"
     original.write_bytes(b"original")
     plan_path = tmp_path / "plan.json"
@@ -548,6 +647,7 @@ def test_legacy_cli_output_and_artifacts_are_unchanged(
     fill_plan.main()
 
     stdout = capsys.readouterr().out
+    assert "fai-form-summary" not in stdout
     assert stdout.count("\n") == 1
     assert json.loads(stdout) == {
         "verified": True,
@@ -653,9 +753,10 @@ def test_recycled_follow_up_rebuilds_answered_cards_from_previous_summary(
             {
                 "version": 1,
                 "questions": [
-                    {
-                        "ask": ask,
-                        "why": "The documents only list the premises.",
+                        {
+                            "ask": ask,
+                            "kind": "missing",
+                            "why": "The documents only list the premises.",
                         "replies": ["Yes, same", "No, different"],
                         "fields": ["Mailing address", "Mailing city"],
                         "status": "open",
@@ -699,6 +800,7 @@ def test_recycled_follow_up_rebuilds_answered_cards_from_previous_summary(
     assert summary["questions"] == [
         {
             "ask": ask,
+            "kind": "missing",
             "why": "The documents only list the premises.",
             "replies": ["Yes, same", "No, different"],
             "fields": ["Mailing address", "Mailing city"],
@@ -746,6 +848,103 @@ def test_filled_counts_each_field_by_its_final_value():
     )
 
     assert (summary["filled"], summary["total"]) == (1, 4)
+
+
+def test_done_rows_prefer_key_answers_and_cap_at_six():
+    specs = [
+        ("contact", "Contact name", "Alex"),
+        ("phone", "Phone", "555-0100"),
+        ("email", "Email", "alex@example.com"),
+        ("insured", "Named insured", "Example LLC"),
+        ("period", "Policy period", "2027-01-01 to 2028-01-01"),
+        ("lob", "Lines of business", "GL, Auto"),
+        ("locations", "Number of locations", "3"),
+        ("notes", "Notes", "Renewal"),
+    ]
+    state = {
+        "fields": [
+            {"id": field_id, "label": label, "kind": "text"}
+            for field_id, label, _ in specs
+        ]
+    }
+    plan = {
+        "fields": [
+            {"id": field_id, "value": value, "source": "submission"}
+            for field_id, _, value in specs
+        ],
+        "blanks": [],
+    }
+
+    summary = fill_plan.build_summary(
+        form_name="ACORD 125",
+        output=Path("filled.pdf"),
+        draft=1,
+        state=state,
+        plan=plan,
+    )
+
+    assert summary["done"] == [
+        {"label": "Named insured", "value": "Example LLC"},
+        {"label": "Policy period", "value": "2027-01-01 to 2028-01-01"},
+        {"label": "Lines of business", "value": "GL, Auto"},
+        {"label": "Number of locations", "value": "3"},
+        {"label": "Contact name", "value": "Alex"},
+        {"label": "Phone", "value": "555-0100"},
+    ]
+
+
+def test_question_kinds_are_explicit_or_deterministically_inferred(state, plan):
+    state["fields"].extend(
+        [
+            {"id": "conflict", "label": "Conflict", "kind": "text"},
+            {"id": "choice", "label": "Choice", "kind": "text"},
+            {"id": "override", "label": "Override", "kind": "text"},
+        ]
+    )
+    plan["blanks"] = [
+        {
+            "id": "fax",
+            "reason": "No source supplies a fax number",
+            "ask": "What is the fax number?",
+        },
+        {
+            "id": "conflict",
+            "reason": "The two applications conflict",
+            "ask": "Which value is current?",
+            "source": "applications A and B",
+        },
+        {
+            "id": "choice",
+            "reason": "The applicant must choose",
+            "ask": "Which deductible do you want?",
+            "source": "application requests a selection",
+        },
+        {
+            "id": "override",
+            "reason": "The wording is ambiguous",
+            "ask": "Should this be included?",
+            "kind": "only_you",
+        },
+    ]
+
+    assert fill_plan.planned_values(plan, state) == {"insured": "Example LLC"}
+    summary = fill_plan.build_summary(
+        form_name="Form",
+        output=Path("filled.pdf"),
+        draft=1,
+        state=state,
+        plan=plan,
+    )
+    assert [question["kind"] for question in summary["questions"]] == [
+        "missing",
+        "unclear",
+        "only_you",
+        "only_you",
+    ]
+
+    plan["blanks"][0]["kind"] = "unknown"
+    with pytest.raises(ValueError, match="Question kind"):
+        fill_plan.planned_values(plan, state)
 
 
 def test_answered_cards_are_not_crowded_out_by_five_open_questions():
