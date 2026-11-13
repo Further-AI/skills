@@ -175,6 +175,11 @@ card and must stay stable, including the `fai-form inspect`,
 `python scripts/fill_plan.py`, and page-rendering command shapes; update the card
 integration before changing or wrapping them.
 
+The backend sets `FAI_FORM_SUMMARY_CARDS=1` exactly when the chat renders form
+summary cards. After a successful verified fill, `fill_plan.py` then emits the
+fenced `fai-form-summary` payload automatically; explicit summary options remain
+available for local use and tests.
+
 ## Development
 
 Bundle validation lives in [scripts/skill_bundle.py](scripts/skill_bundle.py), complete

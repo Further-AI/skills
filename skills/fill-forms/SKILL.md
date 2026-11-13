@@ -11,9 +11,13 @@ Use the installed `fai-form` engine for field inspection, writing, and independe
 verification. Work from the original template in a work directory. Publish a copy
 only after native verification and visual review when the environment supports it.
 
-Narrate each phase. Before you inspect, fill, verify, and deliver, post one short
-line naming what you are about to do — and the field count once you know it — so
-the user sees progress while the `fai-form` steps run instead of a silent gap.
+Always narrate in the normal reply/status flow, independently of summary output.
+On every initial or follow-up run, post exactly one plain, short sentence before
+each phase and include counts once known: “Reading the form and 3 documents…”
+before reading and inspection, “Filling 31 of 350 fields…” before the helper,
+“Checking the filled pages…” before visual review, and “Draft ready.” immediately
+before delivery. Replace the example counts with the actual known counts. Do not
+combine a narration line with another sentence.
 
 ## Map the requested answers
 
@@ -52,6 +56,16 @@ the user sees progress while the `fai-form` steps run instead of a silent gap.
    signature, or cannot be safely placed. It does not erase an existing value.
    Explain an existing-value conflict instead of silently retaining or clearing it.
 
+   Add `ask`, `why`, and `replies` to blanks the user can answer. Include at most
+   five questions and at most three short, obvious reply options; use `[]` when no
+   obvious options exist. Set `kind` to `missing` when no source contains the
+   answer, `unclear` when sources conflict or are ambiguous, or `only_you` for a
+   fact or decision only the user has. A blank may include `source` when a source
+   supports the uncertainty. Do not turn signatures or facts recoverable from
+   sources into questions. Add `assumption` with the reason to at most five
+   inferred or calculated fields, including values taken from an older or
+   different document.
+
 ## Fill and verify
 
 Run the helper from this skill's directory, substituting real paths:
@@ -64,6 +78,12 @@ Use a `.docx` destination for Word. The helper validates the plan against the
 original inspection, calls `fai-form fill`, then independently calls `fai-form
 verify` on the saved copy. It publishes the destination only when every planned
 write passes. It never edits the source. Empty plans and unsupported fields fail.
+The helper also refuses a destination whose filename equals the template's.
+
+Name the destination `<form name> - <insured> (filled).<ext>`. If the insured is
+unknown, use `<source stem> (filled).<ext>`. Its filename must differ from every
+source document's filename, not only the template's. Never deliver a filled draft
+under an uploaded source's filename.
 
 If `fai-form` is unavailable, report the limitation; do not silently switch to a
 different PDF writer. Do not replace `/AcroForm`, copy the original field tree
@@ -77,22 +97,10 @@ the original. After two unsuccessful repairs, explain the remaining fields and
 request the missing information or a supported template. Do not claim completion
 or publish an unverified file.
 
-## Chat summary cards (only when available)
+## Summary blocks and follow-ups
 
-Use summary cards if and only if the system prompt contains this exact line:
-`Form summary cards: available.` Otherwise, do not add the richer plan keys or
-summary arguments below, and keep the existing delivery instructions unchanged.
-
-When cards are available, add `ask`, `why`, and `replies` to blanks that only the
-user can answer. Include at most five questions and at most three short, obvious
-reply options; use `[]` when no obvious options exist. Do not make signatures or
-facts recoverable from sources into questions. Add `assumption` with the reason to
-at most five inferred or calculated fields, including values taken from an older
-or different document.
-
-The chat card recognizes the phase commands and displays the latest narration
-line under the current stage. Run these commands directly with these shapes; do
-not wrap them in another script:
+Run these commands directly with these stable shapes; do not wrap them in another
+script:
 
 ```bash
 fai-form inspect <template> > <work>/original-state.json
@@ -101,27 +109,30 @@ python scripts/fill_plan.py <template> <plan> <dest> [options]
 
 For the visual check, run `fai-form render <dest> <work>/render` directly when
 that subcommand is available. Otherwise run
-`pdftoppm -png <dest> <work>/render/page` directly. When cards are available,
-these commands replace the `pypdfium2` rendering command in Review and deliver.
-Use the helper options `--form-name "FORM NAME" --draft 1` for the first draft. The
-card names the helper's destination file, so give the destination the filename
-the user should receive and deliver the verified copy under that same name.
+`pdftoppm -png <dest> <work>/render/page` directly. These commands replace the
+`pypdfium2` rendering command in Review and deliver when the chat uses their
+output for a summary card.
+The helper infers `--form-name` from the inspection or template filename and uses
+draft 1 by default. Pass either option only to override those defaults. The card
+names the helper's destination file, so deliver the verified copy under that same
+name.
 
-Before each phase, post exactly one short sentence. Include the known counts,
-using lines such as “Reading the form and 3 documents…”, “Filling 31 of 350
-fields…”, “Checking the filled pages…”, and, immediately before delivery, “Draft
-ready.” Do not combine a narration line with another sentence.
-
-In the final reply, use one to three short sentences, do not list fields, then copy
-the helper's fenced `fai-form-summary` block verbatim. For example: “Your first
-draft is ready. I filled 297 of 350 answers; I need 3 things only you know.”
+If the helper's output contains a `fai-form-summary` block, your final reply is one
+to three short sentences (no field lists) followed by that block copied verbatim.
+Otherwise, keep the delivery instructions in Review and deliver below. Summary
+output never changes the narration lines or when they are posted.
 
 When the user answers, preserve the prior plan, update the current plan with those
 values and cite the user's message in each `source`, and write a JSON object mapping
 each answered `ask` exactly to the user's answer. Re-run the helper with
-`--draft N+1 --previous-plan PRIOR_PLAN --answered ANSWERS`, plus `--form-name`.
-Publish the verified result as a new version of the same generated document. Reply
-with one to three short sentences and the new summary block copied verbatim.
+`--previous-plan PRIOR_PLAN --previous-summary PRIOR_SUMMARY --answered ANSWERS`;
+use `--previous-state` instead of `--previous-plan` as described below when
+needed. The helper advances the prior summary's draft number unless `--draft`
+overrides it. Publish the verified result as a new version of the same filled
+document, never as a new version of the uploaded form. If the helper prints a new
+summary block, use the short final-reply format above. Give the helper a fresh
+output path in the current turn's output directory with the filled document's
+same filename, then publish that file as the new version.
 
 If the prior plan is missing from the work directory because the sandbox was
 recycled, fetch the current version of the delivered draft and run
@@ -131,8 +142,9 @@ current plan, then pass `--previous-state <work>/previous-state.json` instead of
 draft. Also save the JSON inside the previous turn's `fai-form-summary` block,
 copied from the chat, to `<work>/previous-summary.json` and pass
 `--previous-summary <work>/previous-summary.json` with `--answered`, so the
-answered questions still appear on the card. If the user stops the run, publish nothing. On the next turn, say whether
-an earlier draft remains the latest published version.
+answered questions still appear on the card. If the user stops the run, publish
+nothing. On the next turn, say whether an earlier draft remains the latest
+published version.
 
 If verification still fails after the two repair attempts, reply in one to three
 sentences naming what could not be filled and why. Do not print or construct a
@@ -176,8 +188,7 @@ summary block; the helper emits none on failure.
 - Copy only the verified final document (visually checked when the environment
   allows) into this turn's output directory. Keep plan, state, renders, and
   temporary files in the work directory.
-- Name the delivered file. When summary cards are unavailable, cite the supplied
-  sources for the filled answers and list each requested blank or unresolved field
-  with its reason. Say “completed” only for the scope actually verified; disclose
-  partial completion plainly. When cards are available, use the short final-reply
-  format in the summary-card section instead.
+- Name the delivered file as specified in Fill and verify. If the helper printed
+  no summary block, cite the supplied sources for the filled answers and list each
+  requested blank or unresolved field with its reason. Say “completed” only for
+  the scope actually verified; disclose partial completion plainly.
