@@ -145,7 +145,7 @@ def humanize_label(label: str) -> str:
             repeat = f" ({ord(letter) - ord('A') + 1})"
     if not text:
         text = label.strip()
-    words = [word if len(word) > 1 and word.isupper() else word.lower() for word in text.split(" ")]
+    words = [word if word.isupper() else word.lower() for word in text.split(" ")]
     sentence = " ".join(words)
     return f"{sentence[:1].upper()}{sentence[1:]}{repeat}"
 

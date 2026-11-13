@@ -1272,7 +1272,7 @@ def test_done_rows_skip_unchecked_boxes() -> None:
 
 
 def test_humanize_label_keeps_letters_in_prose_labels() -> None:
-    assert fill_plan.humanize_label("Plan B") == "Plan b"
+    assert fill_plan.humanize_label("Plan B") == "Plan B"
     assert fill_plan.humanize_label("OwnerIndicator B") == "Owner indicator (2)"
     assert fill_plan.humanize_label("Owner_Indicator_C") == "Owner indicator (3)"
 
