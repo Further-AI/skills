@@ -132,6 +132,12 @@ that subcommand is available. Otherwise run
 `pdftoppm -png <dest> <work>/render/page` directly. These commands replace the
 `pypdfium2` rendering command in Review and deliver when the chat uses their
 output for a summary card.
+If your turn context or system prompt contains the line `Form summary cards:
+available.`, run every helper command with that variable set, exactly like this:
+`FAI_FORM_SUMMARY_CARDS=1 python scripts/fill_plan.py <template> <plan> <dest>
+[options]`. The variable may already be set in your environment; setting it again
+is harmless. Never set it when that line is absent: other surfaces cannot render
+the summary block.
 The helper infers `--form-name` from the inspection or template filename and uses
 draft 1 by default. Pass either option only to override those defaults. The card
 names the helper's destination file, so deliver the verified copy under that same
