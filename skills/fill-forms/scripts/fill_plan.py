@@ -138,7 +138,8 @@ def humanize_label(label: str) -> str:
     text = re.sub(r"\s+", " ", text).strip()
     suffix = re.search(r"(?:^|\s)([A-Z])$", text) if machine_style else None
     repeat = ""
-    if suffix:
+    # A lone letter is the whole name, not a repeat suffix.
+    if suffix and text[: suffix.start()].strip():
         letter = suffix.group(1)
         text = text[: suffix.start()].rstrip()
         if letter != "A":
@@ -226,8 +227,15 @@ def recovered_question_entries(
     the current inspection's IDs by unique label match. A question whose labels
     match nothing is still returned, with no field ID.
     """
+    # Cards written before labels were humanized name each field by its raw
+    # inspection label (or its ID). That exact name wins, so a humanized alias of
+    # another field (`Name_A` -> "Name") cannot make it ambiguous.
+    by_exact: dict[str, list[str]] = {}
     by_label: dict[str, list[str]] = {}
     for field_id, field in fields.items():
+        raw = field.get("label")
+        exact = raw.strip() if isinstance(raw, str) and raw.strip() else field_id
+        by_exact.setdefault(exact, []).append(field_id)
         for label in inspection_label_aliases(field):
             by_label.setdefault(label, []).append(field_id)
     if plan is not None:
@@ -264,11 +272,11 @@ def recovered_question_entries(
                 if field_id in fields
             ]
         else:
-            matched = [
-                (label, by_label[label][0])
-                for label in question["fields"]
-                if len(by_label.get(label, [])) == 1
-            ]
+            matched = []
+            for label in question["fields"]:
+                candidates = by_exact.get(label) or by_label.get(label, [])
+                if len(candidates) == 1:
+                    matched.append((label, candidates[0]))
         entries.extend(
             {**base, "id": field_id, "label": label} for label, field_id in matched
         )
@@ -373,14 +381,19 @@ def done_rows(
     # expiration date"). Text before and after must both agree, so a property start
     # and an auto end, or building 1 and building 2, keep their own rows; several
     # terms under one key cannot be paired safely either.
-    by_qualifier: dict[str, dict[str, list[tuple[int, dict[str, Any], dict[str, Any]]]]] = {}
+    by_qualifier: dict[
+        tuple[str, str], dict[str, list[tuple[int, dict[str, Any], dict[str, Any]]]]
+    ] = {}
     for item in candidates:
         if isinstance(item[1]["value"], bool):
             continue
         label = entry_label(item[1], item[2])
         match = re.match(r"^(.*?)\s*(effective|expiration) date\b(.*)$", label, re.I)
         if match:
-            key = " ".join(f"{match.group(1)} date{match.group(3)}".lower().split())
+            key = (
+                " ".join(match.group(1).lower().split()),
+                " ".join(match.group(3).lower().split()),
+            )
             side = match.group(2).lower()
             by_qualifier.setdefault(key, {}).setdefault(side, []).append(item)
     for key, sides in by_qualifier.items():
@@ -389,12 +402,12 @@ def done_rows(
             continue
         (start_index, start_entry, _), (end_index, end_entry, _) = starts[0], ends[0]
         consumed.update((start_entry["id"], end_entry["id"]))
-        qualifier = key.removesuffix(" date").replace(" date ", " ").strip()
-        label = (
-            "Policy period"
-            if qualifier in ("", "date", "policy", "proposed")
-            else f"{qualifier[:1].upper()}{qualifier[1:]} period"
-        )
+        before, after = key
+        if before in ("", "policy", "proposed"):
+            label = f"Policy period {after}".strip()
+        else:
+            qualifier = f"{before} {after}".strip()
+            label = f"{qualifier[:1].upper()}{qualifier[1:]} period"
         rows.append(
             (
                 1,

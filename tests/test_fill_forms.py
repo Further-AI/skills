@@ -1367,3 +1367,45 @@ def test_done_rows_keep_different_buildings_apart() -> None:
     assert "Property effective date (building 1)" in labels
     assert "Property expiration date (building 2)" in labels
     assert {"label": "Property (building 3) period", "value": "2027-02-01 – 2028-02-01"} in rows
+
+
+def test_humanize_label_is_stable_for_a_lone_letter() -> None:
+    for raw in ("B_", "_B", "B"):
+        once = fill_plan.humanize_label(raw)
+        assert once == "B"
+        assert fill_plan.humanize_label(once) == once
+
+
+def test_recovery_keeps_exact_inspection_label_over_a_humanized_alias() -> None:
+    # A card written before humanized labels names field `x` by its raw label
+    # "Name"; the humanized alias of `Name_A` must not make that ambiguous.
+    fields = {
+        "Name_A": {"id": "Name_A", "kind": "text"},
+        "x": {"id": "x", "kind": "text", "label": "Name"},
+    }
+    previous_summary = {
+        "questions": [
+            {"ask": "Who?", "why": "Missing.", "replies": [], "fields": ["Name"]}
+        ]
+    }
+    entries = fill_plan.recovered_question_entries(
+        previous_summary, fields, {"Who?": "Alex"}
+    )
+    assert [entry.get("id") for entry in entries] == ["x"]
+
+
+def test_period_row_without_a_coverage_prefix_is_not_labelled_date() -> None:
+    fields = _done_fields(
+        ("eff", "Effective date (building 1)", "text"),
+        ("exp", "Expiration date (building 1)", "text"),
+    )
+    plan = {
+        "fields": [
+            {"id": "eff", "value": "2027-01-01", "source": "sov"},
+            {"id": "exp", "value": "2028-01-01", "source": "sov"},
+        ],
+        "blanks": [],
+    }
+    assert fill_plan.done_rows(plan, fields) == [
+        {"label": "Policy period (building 1)", "value": "2027-01-01 – 2028-01-01"}
+    ]
