@@ -1409,3 +1409,49 @@ def test_period_row_without_a_coverage_prefix_is_not_labelled_date() -> None:
     assert fill_plan.done_rows(plan, fields) == [
         {"label": "Policy period (building 1)", "value": "2027-01-01 – 2028-01-01"}
     ]
+
+
+def test_done_rows_keep_proposed_and_policy_periods_distinct() -> None:
+    fields = _done_fields(
+        ("prop_eff", "Proposed effective date (auto)", "text"),
+        ("prop_exp", "Proposed expiration date (auto)", "text"),
+        ("pol_eff", "Policy effective date (auto)", "text"),
+        ("pol_exp", "Policy expiration date (auto)", "text"),
+    )
+    plan = {
+        "fields": [
+            {"id": "prop_eff", "value": "2027-01-01", "source": "quote"},
+            {"id": "prop_exp", "value": "2028-01-01", "source": "quote"},
+            {"id": "pol_eff", "value": "2026-01-01", "source": "dec"},
+            {"id": "pol_exp", "value": "2027-01-01", "source": "dec"},
+        ],
+        "blanks": [],
+    }
+    assert fill_plan.done_rows(plan, fields) == [
+        {"label": "Proposed (auto) period", "value": "2027-01-01 – 2028-01-01"},
+        {"label": "Policy period (auto)", "value": "2026-01-01 – 2027-01-01"},
+    ]
+
+
+def test_done_rows_do_not_pair_periods_that_would_share_a_label() -> None:
+    fields = _done_fields(
+        ("eff", "Effective date", "text"),
+        ("exp", "Expiration date", "text"),
+        ("pol_eff", "Policy effective date", "text"),
+        ("pol_exp", "Policy expiration date", "text"),
+    )
+    plan = {
+        "fields": [
+            {"id": "eff", "value": "2027-01-01", "source": "quote"},
+            {"id": "exp", "value": "2028-01-01", "source": "quote"},
+            {"id": "pol_eff", "value": "2026-01-01", "source": "dec"},
+            {"id": "pol_exp", "value": "2027-01-01", "source": "dec"},
+        ],
+        "blanks": [],
+    }
+    assert fill_plan.done_rows(plan, fields) == [
+        {"label": "Effective date", "value": "2027-01-01"},
+        {"label": "Expiration date", "value": "2028-01-01"},
+        {"label": "Policy effective date", "value": "2026-01-01"},
+        {"label": "Policy expiration date", "value": "2027-01-01"},
+    ]

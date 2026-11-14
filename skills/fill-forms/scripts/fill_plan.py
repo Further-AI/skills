@@ -396,18 +396,27 @@ def done_rows(
             )
             side = match.group(2).lower()
             by_qualifier.setdefault(key, {}).setdefault(side, []).append(item)
+    periods: list[tuple[str, Any, Any]] = []
     for key, sides in by_qualifier.items():
         starts, ends = sides.get("effective", []), sides.get("expiration", [])
         if len(starts) != 1 or len(ends) != 1:
             continue
-        (start_index, start_entry, _), (end_index, end_entry, _) = starts[0], ends[0]
-        consumed.update((start_entry["id"], end_entry["id"]))
         before, after = key
-        if before in ("", "policy", "proposed"):
+        if before in ("", "policy"):
             label = f"Policy period {after}".strip()
         else:
             qualifier = f"{before} {after}".strip()
             label = f"{qualifier[:1].upper()}{qualifier[1:]} period"
+        periods.append((label, starts[0], ends[0]))
+    period_labels = [label for label, _, _ in periods]
+    for label, start, end in periods:
+        # Two periods must never read the same on the card ("Effective date" and
+        # "Policy effective date" pairs both shorten to "Policy period"); such
+        # dates keep their own rows under their own labels.
+        if period_labels.count(label) != 1:
+            continue
+        (start_index, start_entry, _), (end_index, end_entry, _) = start, end
+        consumed.update((start_entry["id"], end_entry["id"]))
         rows.append(
             (
                 1,
