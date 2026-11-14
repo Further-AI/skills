@@ -32,17 +32,19 @@ combine a narration line with another sentence.
    ```json
    {
      "fields": [
-       {"id": "insured", "value": "Example LLC", "source": "brief.txt, named insured: Example LLC"}
+       {"id": "insured", "label": "Named insured", "value": "Example LLC", "source": "brief.txt, named insured: Example LLC"}
      ],
      "blanks": [
-       {"id": "fax", "reason": "No fax number supplied"}
+       {"id": "fax", "label": "Fax number", "reason": "No fax number supplied"}
      ]
    }
    ```
 
-   Use real IDs from inspection. `source` identifies the actual document/passage or
-   explicit user instruction supporting this value; a field label is not evidence.
-   A shared passage can support several fields. Resolve conflicts with the user.
+   Use real IDs from inspection. Give every field and blank a short, human `label`
+   describing what the person sees, such as `FEIN`, `Effective date`, `Owns
+   location 2`, or `Lines of business: General liability`. `source` identifies the
+   actual document/passage or explicit user instruction supporting this value; a
+   field label is not evidence. A shared passage can support several fields.
    The helper checks that a source reference exists, but you must establish that it
    supports the value.
 
@@ -57,14 +59,39 @@ combine a narration line with another sentence.
    Explain an existing-value conflict instead of silently retaining or clearing it.
 
    Add `ask`, `why`, and `replies` to blanks the user can answer. Include at most
-   five questions and at most three short, obvious reply options; use `[]` when no
+   five questions and at most four short, obvious reply options; use `[]` when no
    obvious options exist. Set `kind` to `missing` when no source contains the
    answer, `unclear` when sources conflict or are ambiguous, or `only_you` for a
    fact or decision only the user has. A blank may include `source` when a source
-   supports the uncertainty. Do not turn signatures or facts recoverable from
-   sources into questions. Add `assumption` with the reason to at most five
-   inferred or calculated fields, including values taken from an older or
-   different document.
+   supports the uncertainty. Never ask about signatures or facts recoverable from
+   the supplied sources. Add `assumption` with the reason to at most five inferred
+   or calculated fields, including values taken from an older or different
+   document.
+
+4. After inspection and source reading, use the chat's question card before
+   filling when it is available. The question tool is `AskUserQuestion`, or
+   `AskUser` on runtimes that name it that way. If either is among the tools and
+   the plan has open `missing`, `unclear`, or `only_you` questions, call it exactly
+   once with the one to four most important questions. Each question needs a
+   plain header of at most 12 characters and two to four short options; the user
+   can type a different answer. For a free-text answer (an address, a FEIN, a
+   name), offer the plausible values found in the sources as options; when there
+   are none, offer `Leave blank for now` and `Not applicable`, and say in the
+   question that they can type the answer. Do not call any other interactive
+   question tool.
+   If neither tool is available, skip this step and keep the blanks open.
+
+   Save the pre-question plan. Apply substantive returned answers to a current
+   plan as filled fields and cite the user's returned answer in each `source`.
+   `Leave blank for now`, `Not applicable`, and any other answer that declines or
+   defers are not answers: keep those entries in `blanks` (record the reason) and
+   leave them out of the filled fields and the answers JSON. Leave questions
+   beyond four, skipped questions, and expired questions as blanks with `ask`,
+   `why`, `kind`, and `replies`. Write an answers JSON object that maps each
+   answered `ask` exactly to its returned answer. On this initial run, pass the
+   pre-question plan with `--previous-plan`, the answers with `--answered`, and
+   `--draft 1`; this keeps answered questions in the summary with status
+   `answered` without advancing the draft number.
 
 ## Fill and verify
 
@@ -99,8 +126,7 @@ or publish an unverified file.
 
 ## Summary blocks and follow-ups
 
-Run these commands directly with these stable shapes; do not wrap them in another
-script:
+Run these commands directly; do not wrap them in another script:
 
 ```bash
 fai-form inspect <template> > <work>/original-state.json
@@ -112,15 +138,25 @@ that subcommand is available. Otherwise run
 `pdftoppm -png <dest> <work>/render/page` directly. These commands replace the
 `pypdfium2` rendering command in Review and deliver when the chat uses their
 output for a summary card.
+If your turn context or system prompt contains the line `Form summary cards:
+available.`, run every helper command with that variable set, exactly like this:
+`FAI_FORM_SUMMARY_CARDS=1 python scripts/fill_plan.py <template> <plan> <dest>
+[options]`. The variable may already be set in your environment; setting it again
+is harmless. Never set it when that line is absent: other surfaces cannot render
+the summary block.
 The helper infers `--form-name` from the inspection or template filename and uses
 draft 1 by default. Pass either option only to override those defaults. The card
 names the helper's destination file, so deliver the verified copy under that same
 name.
 
-If the helper's output contains a `fai-form-summary` block, your final reply is one
-to three short sentences (no field lists) followed by that block copied verbatim.
-Otherwise, keep the delivery instructions in Review and deliver below. Summary
-output never changes the narration lines or when they are posted.
+If the helper's output contains a `fai-form-summary` block, your final reply is at
+most two short sentences followed by that block copied verbatim. State only that
+the draft is ready, the filled count, and the number of open items when useful.
+Never restate fields, sources, assumptions, or card details in prose. Never mention
+rendering, page images, native verification, helper scripts, plan files, or other
+internal steps. Otherwise, keep the delivery instructions in Review and deliver
+below, but still never mention internal steps. Summary output never changes the
+narration lines or when they are posted.
 
 When the user answers, preserve the prior plan, update the current plan with those
 values and cite the user's message in each `source`, and write a JSON object mapping
@@ -146,9 +182,10 @@ answered questions still appear on the card. If the user stops the run, publish
 nothing. On the next turn, say whether an earlier draft remains the latest
 published version.
 
-If verification still fails after the two repair attempts, reply in one to three
-sentences naming what could not be filled and why. Do not print or construct a
-summary block; the helper emits none on failure.
+If verification still fails after the two repair attempts, reply in at most two
+sentences naming what could not be filled and why without describing internal
+steps. Do not print or construct a summary block; the helper emits none on
+failure.
 
 ## Review and deliver
 
@@ -180,8 +217,7 @@ summary block; the helper emits none on failure.
   file-reading tool for the rendered images, or the renderer is unavailable, do
   not retry it as an error or call the fill incomplete: skip the visual
   comparison, rely on the native verification that already passed, and tell the
-  user plainly that the layout was not visually checked here, so they should
-  glance at the delivered file.
+  user only to review the delivered layout before signing.
 - Audit the writes against the source-backed plan. Preserve all unrequested
   answers, coverage symbols, signatures, page content, and layout. Any required
   repair goes through the helper and verification again.
