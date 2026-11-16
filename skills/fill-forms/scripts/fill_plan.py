@@ -45,11 +45,15 @@ def planned_values(
             or entry["id"] in seen
         ):
             raise ValueError("Every plan entry needs a unique inspected field id")
+        if "label" in entry and (
+            not isinstance(entry["label"], str) or not entry["label"].strip()
+        ):
+            raise ValueError("Every plan label requires nonempty text")
         seen.add(entry["id"])
     for entry in plan["fields"]:
         if (
             not {"id", "value", "source"} <= set(entry)
-            or not set(entry) <= {"id", "value", "source", "assumption"}
+            or not set(entry) <= {"id", "value", "source", "assumption", "label"}
             or not isinstance(entry["source"], str)
             or not entry["source"].strip()
         ):
@@ -78,7 +82,16 @@ def planned_values(
         if (
             not {"id", "reason"} <= set(entry)
             or not set(entry)
-            <= {"id", "reason", "ask", "why", "replies", "kind", "source"}
+            <= {
+                "id",
+                "reason",
+                "ask",
+                "why",
+                "replies",
+                "kind",
+                "source",
+                "label",
+            }
             or not isinstance(entry["reason"], str)
             or not entry["reason"].strip()
         ):
@@ -99,13 +112,13 @@ def planned_values(
             raise ValueError("Every question reason must be nonempty text")
         if "replies" in entry and (
             not isinstance(entry["replies"], list)
-            or len(entry["replies"]) > 3
+            or len(entry["replies"]) > 4
             or any(
                 not isinstance(reply, str) or not reply.strip()
                 for reply in entry["replies"]
             )
         ):
-            raise ValueError("Question replies require at most three nonempty options")
+            raise ValueError("Question replies require at most four nonempty options")
     if not values:
         raise ValueError(
             "No supported writes; explain the requested blanks without producing a filled copy"
@@ -113,10 +126,53 @@ def planned_values(
     return values
 
 
+def humanize_label(label: str) -> str:
+    """Turn an AcroForm-style label into short sentence case."""
+    raw = label.strip()
+    # A trailing letter is a repeat suffix (`Name_A`, `OwnerIndicator B`) only on
+    # machine-style AcroForm names; in prose labels such as "Plan B" it is the name.
+    machine_style = "_" in raw or re.search(r"[a-z][A-Z]", raw) is not None
+    text = re.sub(r"_+", " ", raw)
+    text = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", text)
+    text = re.sub(r"(?<=[A-Z])(?=[A-Z][a-z])", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    suffix = re.search(r"(?:^|\s)([A-Z])$", text) if machine_style else None
+    repeat = ""
+    # A lone letter is the whole name, not a repeat suffix.
+    if suffix and text[: suffix.start()].strip():
+        letter = suffix.group(1)
+        text = text[: suffix.start()].rstrip()
+        if letter != "A":
+            repeat = f" ({ord(letter) - ord('A') + 1})"
+    if not text:
+        text = label.strip()
+    words = [word if word.isupper() else word.lower() for word in text.split(" ")]
+    sentence = " ".join(words)
+    return f"{sentence[:1].upper()}{sentence[1:]}{repeat}"
+
+
 def field_label(field: dict[str, Any]) -> str:
-    """Return the inspection's human label, with the stable ID as a fallback."""
+    """Return a humanized inspection label, with the stable ID as a fallback."""
     label = field.get("label")
-    return label.strip() if isinstance(label, str) and label.strip() else field["id"]
+    raw = label.strip() if isinstance(label, str) and label.strip() else field["id"]
+    return humanize_label(raw)
+
+
+def entry_label(entry: dict[str, Any], field: dict[str, Any]) -> str:
+    """Prefer the plan's purpose-written label over inspection metadata."""
+    label = entry.get("label")
+    if isinstance(label, str) and label.strip():
+        return label.strip()
+    return field_label(field)
+
+
+def inspection_label_aliases(field: dict[str, Any]) -> set[str]:
+    """Return legacy and humanized inspection labels for follow-up matching."""
+    aliases = {field["id"], humanize_label(field["id"]), field_label(field)}
+    label = field.get("label")
+    if isinstance(label, str) and label.strip():
+        aliases.add(label.strip())
+    return aliases
 
 
 def display_value(value: str | bool) -> str:
@@ -162,6 +218,7 @@ def recovered_question_entries(
     previous_summary: dict[str, Any],
     fields: dict[str, dict[str, Any]],
     answered: dict[str, str],
+    plan: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Answered questions rebuilt from the previous turn's summary card.
 
@@ -170,9 +227,31 @@ def recovered_question_entries(
     the current inspection's IDs by unique label match. A question whose labels
     match nothing is still returned, with no field ID.
     """
+    # Cards written before labels were humanized name each field by its raw
+    # inspection label (or its ID). That exact name wins, so a humanized alias of
+    # another field (`Name_A` -> "Name") cannot make it ambiguous.
+    by_exact: dict[str, list[str]] = {}
     by_label: dict[str, list[str]] = {}
     for field_id, field in fields.items():
-        by_label.setdefault(field_label(field), []).append(field_id)
+        raw = field.get("label")
+        exact = raw.strip() if isinstance(raw, str) and raw.strip() else field_id
+        by_exact.setdefault(exact, []).append(field_id)
+        for label in inspection_label_aliases(field):
+            by_label.setdefault(label, []).append(field_id)
+    if plan is not None:
+        for entry in [*plan["fields"], *plan["blanks"]]:
+            label = entry.get("label")
+            field_id = entry.get("id")
+            if (
+                isinstance(label, str)
+                and label.strip()
+                and isinstance(field_id, str)
+                and field_id in fields
+            ):
+                by_label.setdefault(label.strip(), []).append(field_id)
+    by_label = {
+        label: list(dict.fromkeys(field_ids)) for label, field_ids in by_label.items()
+    }
     entries: list[dict[str, Any]] = []
     for question in previous_summary["questions"]:
         ask = question["ask"]
@@ -184,12 +263,23 @@ def recovered_question_entries(
             "replies": question["replies"],
             "kind": question.get("kind", "only_you"),
         }
-        matched = [
-            by_label[label][0]
-            for label in question["fields"]
-            if len(by_label.get(label, [])) == 1
-        ]
-        entries.extend({**base, "id": field_id} for field_id in matched)
+        field_ids = question.get("field_ids") or []
+        if field_ids and len(field_ids) == len(question["fields"]):
+            # Stable IDs survive a relabelled plan; labels are only for older cards.
+            matched = [
+                (label, field_id)
+                for label, field_id in zip(question["fields"], field_ids, strict=True)
+                if field_id in fields
+            ]
+        else:
+            matched = []
+            for label in question["fields"]:
+                candidates = by_exact.get(label) or by_label.get(label, [])
+                if len(candidates) == 1:
+                    matched.append((label, candidates[0]))
+        entries.extend(
+            {**base, "id": field_id, "label": label} for label, field_id in matched
+        )
         if not matched:
             entries.append(base)
     return entries
@@ -206,6 +296,8 @@ def load_previous_summary(path: Path) -> dict[str, Any]:
         or not isinstance(question.get("fields"), list)
         or question.get("kind", "only_you") not in QUESTION_KINDS
         or not all(isinstance(label, str) for label in question["fields"])
+        or not isinstance(question.get("field_ids", []), list)
+        or not all(isinstance(field_id, str) for field_id in question.get("field_ids", []))
         for question in questions
     ):
         raise ValueError("Previous summary must be a fai-form-summary payload with questions")
@@ -221,11 +313,15 @@ def question_entries(plan: dict[str, Any]) -> list[dict[str, Any]]:
     return [entry for entry in plan["blanks"] if isinstance(entry.get("ask"), str)]
 
 
-def done_priority(field: dict[str, Any]) -> int:
+def done_priority(entry: dict[str, Any], field: dict[str, Any]) -> int:
     """Rank the most useful source-backed answers for the compact card."""
-    text = f"{field_label(field)} {field.get('id', '')}".lower().replace("_", " ")
+    text = f"{entry_label(entry, field)} {field.get('id', '')}".lower().replace(
+        "_", " "
+    )
     if "named insured" in text or "insured name" in text:
         return 0
+    if "fein" in text or "tax identifier" in text:
+        return 3
     if any(
         phrase in text
         for phrase in (
@@ -248,8 +344,19 @@ def done_priority(field: dict[str, Any]) -> int:
             "no. of locations",
         )
     ):
-        return 3
-    return 4
+        return 4
+    if "location" in text:
+        return 4
+    return 5
+
+
+def line_of_business_option(label: str) -> str | None:
+    match = re.match(r"^(?:policy )?lines? of business(?::|\s)+(.*)$", label, re.I)
+    if not match:
+        return None
+    option = match.group(1).strip()
+    option = re.sub(r"^commercial\s+(?=general liability\b)", "", option, flags=re.I)
+    return f"{option[:1].upper()}{option[1:]}" if option else None
 
 
 def done_rows(
@@ -262,16 +369,105 @@ def done_rows(
         if entry["id"] in fields
         and isinstance(entry.get("source"), str)
         and entry["source"].strip()
-        and has_answer({"value": entry.get("value")})
+        and (entry.get("value") is True or has_answer({"value": entry.get("value")}))
     ]
-    candidates.sort(key=lambda item: (done_priority(item[2]), item[0]))
-    return [
-        {
-            "label": field_label(field),
-            "value": display_value(entry["value"]),
-        }
-        for _, entry, field in candidates[:MAX_DONE]
-    ]
+    candidates.sort(key=lambda item: (done_priority(item[1], item[2]), item[0]))
+
+    rows: list[tuple[int, int, dict[str, str]]] = []
+    consumed: set[str] = set()
+
+    # Dates pair into one period row only when their labels match once the
+    # effective/expiration word is removed ("Policy effective date" + "Policy
+    # expiration date"). Text before and after must both agree, so a property start
+    # and an auto end, or building 1 and building 2, keep their own rows; several
+    # terms under one key cannot be paired safely either.
+    by_qualifier: dict[
+        tuple[str, str], dict[str, list[tuple[int, dict[str, Any], dict[str, Any]]]]
+    ] = {}
+    for item in candidates:
+        if isinstance(item[1]["value"], bool):
+            continue
+        label = entry_label(item[1], item[2])
+        match = re.match(r"^(.*?)\s*(effective|expiration) date\b(.*)$", label, re.I)
+        if match:
+            key = (
+                " ".join(match.group(1).lower().split()),
+                " ".join(match.group(3).lower().split()),
+            )
+            side = match.group(2).lower()
+            by_qualifier.setdefault(key, {}).setdefault(side, []).append(item)
+    periods: list[tuple[str, Any, Any]] = []
+    for key, sides in by_qualifier.items():
+        starts, ends = sides.get("effective", []), sides.get("expiration", [])
+        if len(starts) != 1 or len(ends) != 1:
+            continue
+        before, after = key
+        if before in ("", "policy"):
+            label = f"Policy period {after}".strip()
+        else:
+            qualifier = f"{before} {after}".strip()
+            label = f"{qualifier[:1].upper()}{qualifier[1:]} period"
+        periods.append((label, starts[0], ends[0]))
+    period_labels = [label for label, _, _ in periods]
+    for label, start, end in periods:
+        # Two periods must never read the same on the card ("Effective date" and
+        # "Policy effective date" pairs both shorten to "Policy period"); such
+        # dates keep their own rows under their own labels.
+        if period_labels.count(label) != 1:
+            continue
+        (start_index, start_entry, _), (end_index, end_entry, _) = start, end
+        consumed.update((start_entry["id"], end_entry["id"]))
+        rows.append(
+            (
+                1,
+                min(start_index, end_index),
+                {
+                    "label": label,
+                    "value": (
+                        f"{display_value(start_entry['value'])} – "
+                        f"{display_value(end_entry['value'])}"
+                    ),
+                },
+            )
+        )
+
+    business_options: list[str] = []
+    business_indexes: list[int] = []
+    for index, entry, field in candidates:
+        if field.get("kind") != "checkbox":
+            continue
+        option = line_of_business_option(entry_label(entry, field))
+        if option is not None:
+            consumed.add(entry["id"])
+            if entry["value"] is True:
+                business_options.append(option)
+                business_indexes.append(index)
+    if business_options:
+        rows.append(
+            (
+                2,
+                min(business_indexes),
+                {
+                    "label": "Lines of business",
+                    "value": ", ".join(dict.fromkeys(business_options)),
+                },
+            )
+        )
+
+    rows.extend(
+        (
+            done_priority(entry, field),
+            index,
+            {
+                "label": entry_label(entry, field),
+                "value": display_value(entry["value"]),
+            },
+        )
+        for index, entry, field in candidates
+        if entry["id"] not in consumed
+    )
+    rows.sort(key=lambda item: (item[0], item[1]))
+    return [row for _, _, row in rows[:MAX_DONE]]
 
 
 def changed_fields_from_state(
@@ -341,7 +537,7 @@ def build_summary(
             if entry["ask"] in answered
         )
     recovered = (
-        recovered_question_entries(previous_summary, fields, answered)
+        recovered_question_entries(previous_summary, fields, answered, plan)
         if previous_summary is not None
         else []
     )
@@ -354,6 +550,7 @@ def build_summary(
                 "why": entry.get("why", entry.get("reason", "")),
                 "replies": entry.get("replies", []),
                 "field_ids": [],
+                "field_labels": [],
             }
             question_order.append(ask)
         elif question_kind(entry) == "unclear":
@@ -362,6 +559,9 @@ def build_summary(
         field_id = entry.get("id")
         if field_id is not None and field_id not in grouped_questions[ask]["field_ids"]:
             grouped_questions[ask]["field_ids"].append(field_id)
+            grouped_questions[ask]["field_labels"].append(
+                entry_label(entry, fields[field_id])
+            )
 
     # Answered and open questions are capped separately, answered first, so a
     # follow-up's confirmed answers are never crowded out by open questions.
@@ -377,10 +577,8 @@ def build_summary(
                 "kind": question["kind"],
                 "why": question["why"],
                 "replies": question["replies"],
-                "fields": [
-                    field_label(fields[field_id])
-                    for field_id in question["field_ids"]
-                ],
+                "fields": question["field_labels"],
+                "field_ids": question["field_ids"],
                 "status": "answered" if is_answered else "open",
                 "answer": answered[ask] if is_answered else None,
             }
@@ -389,7 +587,7 @@ def build_summary(
     assumptions = [
         {
             "statement": (
-                f"{field_label(fields[entry['id']])} is "
+                f"{entry_label(entry, fields[entry['id']])} is "
                 f"{display_value(entry['value'])}"
             ),
             "reason": entry["assumption"],
@@ -439,7 +637,7 @@ def build_summary(
                 ungrouped_changes.append(entry)
 
         for ask, entries in grouped_changes.items():
-            labels = [field_label(fields[entry["id"]]) for entry in entries]
+            labels = [entry_label(entry, fields[entry["id"]]) for entry in entries]
             values = [display_value(entry["value"]) for entry in entries]
             changes.append(
                 {
@@ -450,7 +648,7 @@ def build_summary(
             )
         changes.extend(
             {
-                "label": field_label(fields[entry["id"]]),
+                "label": entry_label(entry, fields[entry["id"]]),
                 "value": display_value(entry["value"]),
                 "fields": 1,
             }

@@ -50,6 +50,36 @@ def test_scope_only_contains_source_backed_writes(state, plan):
 
 
 @pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("Policy EffectiveDate", "Policy effective date"),
+        ("NamedInsured TaxIdentifier", "Named insured tax identifier"),
+        (
+            "CommercialStructure InsuredInterest OwnerIndicator A",
+            "Commercial structure insured interest owner indicator",
+        ),
+        (
+            "CommercialStructure InsuredInterest OwnerIndicator B",
+            "Commercial structure insured interest owner indicator (2)",
+        ),
+        ("OwnerIndicator_C", "Owner indicator (3)"),
+    ],
+)
+def test_humanize_inspection_labels(raw, expected):
+    assert fill_plan.humanize_label(raw) == expected
+
+
+def test_plan_labels_are_validated_and_optional(state, plan):
+    plan["fields"][0]["label"] = "Named insured"
+    plan["blanks"][0]["label"] = "Fax number"
+    assert fill_plan.planned_values(plan, state) == {"insured": "Example LLC"}
+
+    plan["blanks"][0]["label"] = " "
+    with pytest.raises(ValueError, match="plan label"):
+        fill_plan.planned_values(plan, state)
+
+
+@pytest.mark.parametrize(
     "mutation",
     ["unknown", "duplicate", "blank_reason", "signature", "readonly", "empty"],
 )
@@ -323,6 +353,7 @@ def test_summary_groups_questions_and_lists_assumptions(tmp_path, monkeypatch, c
                 "why": "The documents only list the premises.",
                 "replies": ["Yes, same", "No, different"],
                 "fields": ["Mailing address", "Mailing city"],
+                "field_ids": ["mail1", "mail2"],
                 "status": "open",
                 "answer": None,
             }
@@ -465,6 +496,7 @@ def test_follow_up_summary_marks_answers_and_groups_changes():
             "why": "The documents only list the premises.",
             "replies": ["Yes, same", "No, different"],
             "fields": ["Mailing address", "Mailing city"],
+            "field_ids": ["mail1", "mail2"],
             "status": "answered",
             "answer": "Yes, same",
         }
@@ -803,6 +835,7 @@ def test_recycled_follow_up_rebuilds_answered_cards_from_previous_summary(
             "kind": "missing",
             "why": "The documents only list the premises.",
             "replies": ["Yes, same", "No, different"],
+            "field_ids": ["mail1", "mail2"],
             "fields": ["Mailing address", "Mailing city"],
             "status": "answered",
             "answer": "Yes, same",
@@ -890,6 +923,203 @@ def test_done_rows_prefer_key_answers_and_cap_at_six():
         {"label": "Number of locations", "value": "3"},
         {"label": "Contact name", "value": "Alex"},
         {"label": "Phone", "value": "555-0100"},
+    ]
+
+
+def test_summary_prefers_plan_labels_and_groups_key_done_rows():
+    state = {
+        "fields": [
+            {"id": "NamedInsured", "kind": "text"},
+            {"id": "PolicyEffectiveDate", "kind": "text"},
+            {"id": "PolicyExpirationDate", "kind": "text"},
+            {"id": "PolicyLineOfBusinessCommercialGeneralLiability", "kind": "checkbox"},
+            {"id": "PolicyLineOfBusinessCommercialAuto", "kind": "checkbox"},
+            {"id": "PolicyLineOfBusinessWorkersCompensation", "kind": "checkbox"},
+            {"id": "NamedInsuredTaxIdentifier", "kind": "text"},
+            {"id": "LocationCount", "kind": "text"},
+            {"id": "OwnerIndicatorB", "kind": "checkbox"},
+            {"id": "UnresolvedCode", "kind": "text"},
+        ]
+    }
+    plan = {
+        "fields": [
+            {
+                "id": "NamedInsured",
+                "label": "Named insured",
+                "value": "Example LLC",
+                "source": "application",
+            },
+            {
+                "id": "PolicyEffectiveDate",
+                "label": "Effective date",
+                "value": "2027-01-01",
+                "source": "application",
+            },
+            {
+                "id": "PolicyExpirationDate",
+                "label": "Expiration date",
+                "value": "2028-01-01",
+                "source": "application",
+            },
+            {
+                "id": "PolicyLineOfBusinessCommercialGeneralLiability",
+                "label": "Lines of business: General liability",
+                "value": True,
+                "source": "application",
+            },
+            {
+                "id": "PolicyLineOfBusinessCommercialAuto",
+                "label": "Lines of business: Commercial auto",
+                "value": True,
+                "source": "application",
+            },
+            {
+                "id": "PolicyLineOfBusinessWorkersCompensation",
+                "label": "Lines of business: Workers compensation",
+                "value": False,
+                "source": "application",
+            },
+            {
+                "id": "NamedInsuredTaxIdentifier",
+                "label": "FEIN",
+                "value": "12-3456789",
+                "source": "W-9",
+                "assumption": "Taken from the current W-9",
+            },
+            {
+                "id": "LocationCount",
+                "label": "Locations",
+                "value": "2",
+                "source": "schedule",
+            },
+            {
+                "id": "OwnerIndicatorB",
+                "value": False,
+                "source": "application",
+            },
+        ],
+        "blanks": [
+            {
+                "id": "UnresolvedCode",
+                "label": "Entity code",
+                "reason": "The sources conflict",
+                "ask": "Which entity code is current?",
+                "why": "Two supplied forms disagree.",
+                "kind": "unclear",
+            }
+        ],
+    }
+
+    summary = fill_plan.build_summary(
+        form_name="ACORD 125",
+        output=Path("filled.pdf"),
+        draft=1,
+        state=state,
+        plan=plan,
+    )
+
+    assert summary["done"] == [
+        {"label": "Named insured", "value": "Example LLC"},
+        {"label": "Policy period", "value": "2027-01-01 – 2028-01-01"},
+        {
+            "label": "Lines of business",
+            "value": "General liability, Commercial auto",
+        },
+        {"label": "FEIN", "value": "12-3456789"},
+        {"label": "Locations", "value": "2"},
+    ]
+    assert summary["questions"][0]["fields"] == ["Entity code"]
+    assert summary["assumptions"][0]["statement"] == "FEIN is 12-3456789"
+
+
+def test_recycled_follow_up_maps_question_fields_through_plan_labels():
+    ask = "What is the mailing street?"
+    state = {
+        "fields": [
+            {"id": "ApplicantMailingAddressLine1", "kind": "text", "value": ""}
+        ]
+    }
+    plan = {
+        "fields": [
+            {
+                "id": "ApplicantMailingAddressLine1",
+                "label": "Mailing street",
+                "value": "1200 W Fulton St",
+                "source": "AskUserQuestion answer: 1200 W Fulton St",
+            }
+        ],
+        "blanks": [],
+    }
+    previous_summary = {
+        "version": 1,
+        "questions": [
+            {
+                "ask": ask,
+                "kind": "missing",
+                "why": "No mailing street was supplied.",
+                "replies": [],
+                "fields": ["Mailing street"],
+                "status": "open",
+                "answer": None,
+            }
+        ],
+    }
+
+    summary = fill_plan.build_summary(
+        form_name="ACORD 125",
+        output=Path("filled.pdf"),
+        draft=1,
+        state=state,
+        plan=plan,
+        previous_summary=previous_summary,
+        answered={ask: "1200 W Fulton St"},
+    )
+
+    assert summary["questions"] == [
+        {
+            "ask": ask,
+            "kind": "missing",
+            "why": "No mailing street was supplied.",
+            "replies": [],
+            "fields": ["Mailing street"],
+            "field_ids": ["ApplicantMailingAddressLine1"],
+            "status": "answered",
+            "answer": "1200 W Fulton St",
+        }
+    ]
+
+
+def test_changes_prefer_current_plan_label():
+    state = {"fields": [{"id": "TotalPayroll", "kind": "text"}]}
+    previous = {
+        "fields": [
+            {"id": "TotalPayroll", "value": "$4,000,000", "source": "old SOV"}
+        ],
+        "blanks": [],
+    }
+    current = {
+        "fields": [
+            {
+                "id": "TotalPayroll",
+                "label": "Annual payroll",
+                "value": "$4,820,000",
+                "source": "new SOV",
+            }
+        ],
+        "blanks": [],
+    }
+
+    summary = fill_plan.build_summary(
+        form_name="ACORD 125",
+        output=Path("filled.pdf"),
+        draft=2,
+        state=state,
+        plan=current,
+        previous_plan=previous,
+    )
+
+    assert summary["changes"] == [
+        {"label": "Annual payroll", "value": "$4,820,000", "fields": 1}
     ]
 
 
@@ -983,3 +1213,245 @@ def test_answered_cards_are_not_crowded_out_by_five_open_questions():
     statuses = [(question["ask"], question["status"]) for question in summary["questions"]]
     assert statuses[0] == (answered_ask, "answered")
     assert [status for _, status in statuses].count("open") == 5
+
+
+def test_humanize_label_keeps_acronyms() -> None:
+    assert fill_plan.humanize_label("NAICS Code") == "NAICS code"
+    assert fill_plan.humanize_label("Producer_FEIN_B") == "Producer FEIN (2)"
+
+
+def _done_fields(*specs: tuple[str, str, str]) -> dict[str, dict[str, object]]:
+    return {field_id: {"id": field_id, "label": label, "kind": kind} for field_id, label, kind in specs}
+
+
+def test_done_rows_keep_separate_terms_apart() -> None:
+    fields = _done_fields(
+        ("prop_eff", "Property effective date", "text"),
+        ("auto_eff", "Auto effective date", "text"),
+        ("auto_exp", "Auto expiration date", "text"),
+    )
+    plan = {
+        "fields": [
+            {"id": "prop_eff", "value": "2027-01-01", "source": "dec"},
+            {"id": "auto_eff", "value": "2027-03-01", "source": "dec"},
+            {"id": "auto_exp", "value": "2027-12-31", "source": "dec"},
+        ],
+        "blanks": [],
+    }
+    rows = fill_plan.done_rows(plan, fields)
+    assert rows == [
+        {"label": "Property effective date", "value": "2027-01-01"},
+        {"label": "Auto period", "value": "2027-03-01 – 2027-12-31"},
+    ]
+
+
+def test_done_rows_rank_insured_name_ahead_of_other_fields() -> None:
+    specs = [(f"contact_{n}", f"Contact {n}", "text") for n in range(6)]
+    fields = _done_fields(*specs, ("insured", "Insured Name", "text"))
+    plan = {
+        "fields": [
+            *({"id": field_id, "value": "x", "source": "dec"} for field_id, _, _ in specs),
+            {"id": "insured", "value": "Northstar Cabinet Works LLC", "source": "dec"},
+        ],
+        "blanks": [],
+    }
+    rows = fill_plan.done_rows(plan, fields)
+    assert rows[0] == {"label": "Insured name", "value": "Northstar Cabinet Works LLC"}
+    assert len(rows) == 6
+
+
+def test_done_rows_skip_unchecked_boxes() -> None:
+    specs = [(f"owns_{n}", f"Owns location {n}", "checkbox") for n in range(6)]
+    fields = _done_fields(*specs, ("contact", "Contact name", "text"))
+    plan = {
+        "fields": [
+            *({"id": field_id, "value": False, "source": "sov"} for field_id, _, _ in specs),
+            {"id": "contact", "value": "Alex", "source": "dec"},
+        ],
+        "blanks": [],
+    }
+    assert fill_plan.done_rows(plan, fields) == [{"label": "Contact name", "value": "Alex"}]
+
+
+def test_humanize_label_keeps_letters_in_prose_labels() -> None:
+    assert fill_plan.humanize_label("Plan B") == "Plan B"
+    assert fill_plan.humanize_label("OwnerIndicator B") == "Owner indicator (2)"
+    assert fill_plan.humanize_label("Owner_Indicator_C") == "Owner indicator (3)"
+
+
+def test_recovery_prefers_stable_field_ids_over_labels() -> None:
+    fields = {
+        "ApplicantMailingAddressLine1": {
+            "id": "ApplicantMailingAddressLine1",
+            "label": "Applicant Mailing Address Line1",
+            "kind": "text",
+        }
+    }
+    previous_summary = {
+        "questions": [
+            {
+                "ask": "What is the mailing street?",
+                "why": "No mailing street was supplied.",
+                "replies": [],
+                "fields": ["Mailing street"],
+                "field_ids": ["ApplicantMailingAddressLine1"],
+                "kind": "missing",
+            }
+        ]
+    }
+    relabelled_plan = {
+        "fields": [
+            {
+                "id": "ApplicantMailingAddressLine1",
+                "label": "Street address",
+                "value": "1200 W Fulton St",
+                "source": "user",
+            }
+        ],
+        "blanks": [],
+    }
+    entries = fill_plan.recovered_question_entries(
+        previous_summary,
+        fields,
+        {"What is the mailing street?": "1200 W Fulton St"},
+        relabelled_plan,
+    )
+    assert [(entry["id"], entry["label"]) for entry in entries] == [
+        ("ApplicantMailingAddressLine1", "Mailing street")
+    ]
+
+
+def test_done_rows_pair_dates_only_for_the_same_coverage() -> None:
+    fields = _done_fields(
+        ("prop_eff", "Property effective date", "text"),
+        ("auto_exp", "Auto expiration date", "text"),
+        ("pol_eff", "Policy effective date", "text"),
+        ("pol_exp", "Policy expiration date", "text"),
+    )
+    plan = {
+        "fields": [
+            {"id": "prop_eff", "value": "2027-01-01", "source": "dec"},
+            {"id": "auto_exp", "value": "2027-12-31", "source": "dec"},
+            {"id": "pol_eff", "value": "2027-01-01", "source": "quote"},
+            {"id": "pol_exp", "value": "2028-01-01", "source": "quote"},
+        ],
+        "blanks": [],
+    }
+    rows = fill_plan.done_rows(plan, fields)
+    assert {"label": "Policy period", "value": "2027-01-01 – 2028-01-01"} in rows
+    labels = [row["label"] for row in rows]
+    assert "Property effective date" in labels
+    assert "Auto expiration date" in labels
+
+
+def test_done_rows_keep_different_buildings_apart() -> None:
+    fields = _done_fields(
+        ("b1_eff", "Property effective date (building 1)", "text"),
+        ("b2_exp", "Property expiration date (building 2)", "text"),
+        ("auto_eff", "Auto effective date", "text"),
+        ("b3_eff", "Property effective date (building 3)", "text"),
+        ("b3_exp", "Property expiration date (building 3)", "text"),
+    )
+    plan = {
+        "fields": [
+            {"id": "b1_eff", "value": "2027-01-01", "source": "sov"},
+            {"id": "b2_exp", "value": "2027-12-31", "source": "sov"},
+            {"id": "auto_eff", "value": "2027-03-01", "source": "dec"},
+            {"id": "b3_eff", "value": "2027-02-01", "source": "sov"},
+            {"id": "b3_exp", "value": "2028-02-01", "source": "sov"},
+        ],
+        "blanks": [],
+    }
+    rows = fill_plan.done_rows(plan, fields)
+    labels = [row["label"] for row in rows]
+    assert "Property effective date (building 1)" in labels
+    assert "Property expiration date (building 2)" in labels
+    assert {"label": "Property (building 3) period", "value": "2027-02-01 – 2028-02-01"} in rows
+
+
+def test_humanize_label_is_stable_for_a_lone_letter() -> None:
+    for raw in ("B_", "_B", "B"):
+        once = fill_plan.humanize_label(raw)
+        assert once == "B"
+        assert fill_plan.humanize_label(once) == once
+
+
+def test_recovery_keeps_exact_inspection_label_over_a_humanized_alias() -> None:
+    # A card written before humanized labels names field `x` by its raw label
+    # "Name"; the humanized alias of `Name_A` must not make that ambiguous.
+    fields = {
+        "Name_A": {"id": "Name_A", "kind": "text"},
+        "x": {"id": "x", "kind": "text", "label": "Name"},
+    }
+    previous_summary = {
+        "questions": [
+            {"ask": "Who?", "why": "Missing.", "replies": [], "fields": ["Name"]}
+        ]
+    }
+    entries = fill_plan.recovered_question_entries(
+        previous_summary, fields, {"Who?": "Alex"}
+    )
+    assert [entry.get("id") for entry in entries] == ["x"]
+
+
+def test_period_row_without_a_coverage_prefix_is_not_labelled_date() -> None:
+    fields = _done_fields(
+        ("eff", "Effective date (building 1)", "text"),
+        ("exp", "Expiration date (building 1)", "text"),
+    )
+    plan = {
+        "fields": [
+            {"id": "eff", "value": "2027-01-01", "source": "sov"},
+            {"id": "exp", "value": "2028-01-01", "source": "sov"},
+        ],
+        "blanks": [],
+    }
+    assert fill_plan.done_rows(plan, fields) == [
+        {"label": "Policy period (building 1)", "value": "2027-01-01 – 2028-01-01"}
+    ]
+
+
+def test_done_rows_keep_proposed_and_policy_periods_distinct() -> None:
+    fields = _done_fields(
+        ("prop_eff", "Proposed effective date (auto)", "text"),
+        ("prop_exp", "Proposed expiration date (auto)", "text"),
+        ("pol_eff", "Policy effective date (auto)", "text"),
+        ("pol_exp", "Policy expiration date (auto)", "text"),
+    )
+    plan = {
+        "fields": [
+            {"id": "prop_eff", "value": "2027-01-01", "source": "quote"},
+            {"id": "prop_exp", "value": "2028-01-01", "source": "quote"},
+            {"id": "pol_eff", "value": "2026-01-01", "source": "dec"},
+            {"id": "pol_exp", "value": "2027-01-01", "source": "dec"},
+        ],
+        "blanks": [],
+    }
+    assert fill_plan.done_rows(plan, fields) == [
+        {"label": "Proposed (auto) period", "value": "2027-01-01 – 2028-01-01"},
+        {"label": "Policy period (auto)", "value": "2026-01-01 – 2027-01-01"},
+    ]
+
+
+def test_done_rows_do_not_pair_periods_that_would_share_a_label() -> None:
+    fields = _done_fields(
+        ("eff", "Effective date", "text"),
+        ("exp", "Expiration date", "text"),
+        ("pol_eff", "Policy effective date", "text"),
+        ("pol_exp", "Policy expiration date", "text"),
+    )
+    plan = {
+        "fields": [
+            {"id": "eff", "value": "2027-01-01", "source": "quote"},
+            {"id": "exp", "value": "2028-01-01", "source": "quote"},
+            {"id": "pol_eff", "value": "2026-01-01", "source": "dec"},
+            {"id": "pol_exp", "value": "2027-01-01", "source": "dec"},
+        ],
+        "blanks": [],
+    }
+    assert fill_plan.done_rows(plan, fields) == [
+        {"label": "Effective date", "value": "2027-01-01"},
+        {"label": "Expiration date", "value": "2028-01-01"},
+        {"label": "Policy effective date", "value": "2026-01-01"},
+        {"label": "Policy expiration date", "value": "2027-01-01"},
+    ]
