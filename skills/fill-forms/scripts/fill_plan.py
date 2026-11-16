@@ -83,6 +83,13 @@ def planned_values(
             or field.get("calculated")
         ):
             raise ValueError(f"Field cannot be authored: {entry['id']}")
+        # The engine reads false on a Yes/No group as "tick neither" and reports
+        # it placed, so the question would be published unanswered.
+        if isinstance(value, bool) and len(field.get("options") or []) > 1:
+            raise ValueError(
+                "Field has several options; write the option name, "
+                f"not true or false: {entry['id']}"
+            )
         values[entry["id"]] = value
     for entry in plan["blanks"]:
         if (
