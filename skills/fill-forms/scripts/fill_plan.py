@@ -37,18 +37,24 @@ def planned_values(
         raise ValueError("Plan requires fields and blanks lists")
     values: dict[str, str | bool] = {}
     seen = set()
-    for entry in [*plan["fields"], *plan["blanks"]]:
-        if (
-            not isinstance(entry, dict)
-            or not isinstance(entry.get("id"), str)
-            or entry["id"] not in fields
-            or entry["id"] in seen
-        ):
+    for index, entry in enumerate([*plan["fields"], *plan["blanks"]]):
+        if not isinstance(entry, dict):
             raise ValueError("Every plan entry needs a unique inspected field id")
         if "label" in entry and (
             not isinstance(entry["label"], str) or not entry["label"].strip()
         ):
             raise ValueError("Every plan label requires nonempty text")
+        # A requested answer the form has no field for is a blank with no id.
+        if index >= len(plan["fields"]) and "id" not in entry:
+            if "label" not in entry:
+                raise ValueError("A blank with no form field requires a label")
+            continue
+        if (
+            not isinstance(entry.get("id"), str)
+            or entry["id"] not in fields
+            or entry["id"] in seen
+        ):
+            raise ValueError("Every plan entry needs a unique inspected field id")
         seen.add(entry["id"])
     for entry in plan["fields"]:
         if (
@@ -80,7 +86,7 @@ def planned_values(
         values[entry["id"]] = value
     for entry in plan["blanks"]:
         if (
-            not {"id", "reason"} <= set(entry)
+            "reason" not in entry
             or not set(entry)
             <= {
                 "id",
@@ -195,6 +201,8 @@ def has_answer(field: dict[str, Any]) -> bool:
 
 MAX_QUESTIONS = 5
 MAX_DONE = 6
+MAX_ASSUMPTIONS = 5
+MAX_LEFT_BLANK = 8
 QUESTION_KINDS = {"missing", "unclear", "only_you"}
 
 
@@ -363,6 +371,13 @@ def done_rows(
     plan: dict[str, Any], fields: dict[str, dict[str, Any]]
 ) -> list[dict[str, str]]:
     """Return up to six important filled, source-backed answers."""
+    return all_done_rows(plan, fields)[:MAX_DONE]
+
+
+def all_done_rows(
+    plan: dict[str, Any], fields: dict[str, dict[str, Any]]
+) -> list[dict[str, str]]:
+    """Return every filled, source-backed answer row, most important first."""
     candidates = [
         (index, entry, fields[entry["id"]])
         for index, entry in enumerate(plan["fields"])
@@ -467,7 +482,7 @@ def done_rows(
         if entry["id"] not in consumed
     )
     rows.sort(key=lambda item: (item[0], item[1]))
-    return [row for _, _, row in rows[:MAX_DONE]]
+    return [row for _, _, row in rows]
 
 
 def changed_fields_from_state(
@@ -594,7 +609,22 @@ def build_summary(
         }
         for entry in plan["fields"]
         if "assumption" in entry
-    ][:5]
+    ]
+
+    # A blank nobody can answer in chat (no field on the form, a signature) has
+    # no question, but the form is still not finished without it.
+    left_blank = [
+        {
+            "label": (
+                entry_label(entry, fields[entry["id"]])
+                if "id" in entry
+                else entry["label"].strip()
+            ),
+            "reason": entry["reason"].strip(),
+        }
+        for entry in plan["blanks"]
+        if not isinstance(entry.get("ask"), str)
+    ]
 
     changes: list[dict[str, Any]] = []
     if draft >= 2 and (previous_plan is not None or previous_state is not None):
@@ -622,7 +652,7 @@ def build_summary(
         membership_sources.extend(entry for entry in recovered if "id" in entry)
         for entry in membership_sources:
             ask = entry["ask"]
-            if ask in answered:
+            if ask in answered and "id" in entry:
                 memberships = answered_memberships.setdefault(entry["id"], [])
                 if ask not in memberships:
                     memberships.append(ask)
@@ -655,6 +685,29 @@ def build_summary(
             for entry in ungrouped_changes
         )
 
+        # Every draft is filled from the original, so an answer dropped from the
+        # plan is gone from the file and the card has to say so.
+        if previous_plan is not None:
+            removed = [
+                entry_label(entry, fields[entry["id"]])
+                for entry in previous_plan["fields"]
+                if entry["id"] in fields and entry["id"] not in planned
+            ]
+        else:
+            assert previous_state is not None
+            removed = [
+                field_label(fields[field["id"]])
+                for field in previous_state["fields"]
+                if field.get("id") in fields
+                and field["id"] not in planned
+                and has_answer(field)
+                and not has_answer(fields[field["id"]])
+            ]
+        changes.extend(
+            {"label": label, "value": "Removed", "fields": 1, "removed": True}
+            for label in removed
+        )
+
     # A field counts as filled by its final value: the planned write when there
     # is one, otherwise what the form already held. A planned unchecked box is
     # therefore not filled, the same as an untouched unchecked box.
@@ -662,6 +715,7 @@ def build_summary(
         has_answer({"value": planned[field_id]["value"]} if field_id in planned else field)
         for field_id, field in fields.items()
     )
+    done = all_done_rows(plan, fields)
     return {
         "version": 1,
         "form": form_name,
@@ -669,10 +723,18 @@ def build_summary(
         "draft": draft,
         "filled": filled,
         "total": len(fields),
-        "done": done_rows(plan, fields),
+        "done": done[:MAX_DONE],
         "questions": questions,
-        "assumptions": assumptions,
+        "assumptions": assumptions[:MAX_ASSUMPTIONS],
         "changes": changes,
+        "left_blank": left_blank[:MAX_LEFT_BLANK],
+        # The lists above are capped for the card; these are the uncapped counts.
+        "totals": {
+            "done": len(done),
+            "open_questions": sum(ask not in answered for ask in question_order),
+            "assumptions": len(assumptions),
+            "left_blank": len(left_blank),
+        },
     }
 
 
@@ -876,6 +938,17 @@ def main() -> None:
                 previous_state=previous_state,
                 previous_summary=previous_summary,
             )
+            # The summary this helper saved beside the previous plan is the
+            # record of the last published draft; a caller that forgets the
+            # draft options must not produce a second card with the same number.
+            if args.previous_plan is not None:
+                published = args.previous_plan.with_name(
+                    f"{args.previous_plan.stem}.summary.json"
+                )
+                if published.is_file():
+                    prior = load_object(published, "Previous summary").get("draft")
+                    if isinstance(prior, int) and not isinstance(prior, bool):
+                        draft = max(draft, prior + 1)
             # execute_fill only publishes to a destination that did not exist, so
             # removing it on a card failure undoes exactly this run and leaves
             # the same path free for the retry.
