@@ -199,6 +199,26 @@ def has_answer(field: dict[str, Any]) -> bool:
     return True
 
 
+def same_answer(first: Any, second: Any) -> bool:
+    """Whether two field values read the same; every kind of blank is one value."""
+    if not has_answer({"value": first}) and not has_answer({"value": second}):
+        return True
+    if isinstance(first, str) and isinstance(second, str):
+        return first.strip() == second.strip()
+    return type(first) is type(second) and first == second
+
+
+def answer_text(value: Any) -> str:
+    """Show an inspected answer the way the card shows a planned one."""
+    if isinstance(value, bool):
+        return display_value(value)
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, list):
+        return ", ".join(answer_text(item) for item in value)
+    return json.dumps(value, ensure_ascii=False)
+
+
 MAX_QUESTIONS = 5
 MAX_DONE = 6
 MAX_ASSUMPTIONS = 5
@@ -685,28 +705,39 @@ def build_summary(
             for entry in ungrouped_changes
         )
 
-        # Every draft is filled from the original, so an answer dropped from the
-        # plan is gone from the file and the card has to say so.
+        # Every draft is filled from the original, so a field the plan no longer
+        # writes holds whatever the original held: nothing ("Removed"), or the
+        # original's own answer, which is a change like any other. A field that
+        # reads the same as it did in the previous draft is not a change.
         if previous_plan is not None:
-            removed = [
-                entry_label(entry, fields[entry["id"]])
+            dropped = [
+                (entry_label(entry, fields[entry["id"]]), entry["value"], entry["id"])
                 for entry in previous_plan["fields"]
                 if entry["id"] in fields and entry["id"] not in planned
             ]
         else:
             assert previous_state is not None
-            removed = [
-                field_label(fields[field["id"]])
+            dropped = [
+                (field_label(fields[field["id"]]), field.get("value"), field["id"])
                 for field in previous_state["fields"]
-                if field.get("id") in fields
-                and field["id"] not in planned
-                and has_answer(field)
-                and not has_answer(fields[field["id"]])
+                if field.get("id") in fields and field["id"] not in planned
             ]
-        changes.extend(
-            {"label": label, "value": "Removed", "fields": 1, "removed": True}
-            for label in removed
-        )
+        for label, before, field_id in dropped:
+            original = fields[field_id]
+            if same_answer(before, original.get("value")):
+                continue
+            if has_answer(original):
+                changes.append(
+                    {
+                        "label": label,
+                        "value": answer_text(original["value"]),
+                        "fields": 1,
+                    }
+                )
+            else:
+                changes.append(
+                    {"label": label, "value": "Removed", "fields": 1, "removed": True}
+                )
 
     # A field counts as filled by its final value: the planned write when there
     # is one, otherwise what the form already held. A planned unchecked box is
@@ -926,6 +957,20 @@ def main() -> None:
                 else None
             )
             answered = load_answers(args.answered)
+            # The summary this helper saved beside the previous plan is the
+            # record of the last published draft; a caller that forgets the
+            # draft options must not produce a second card with the same number.
+            # It is read before the fill, so a damaged file fails the run
+            # without leaving a draft at the destination.
+            published_draft = None
+            if args.previous_plan is not None:
+                published = args.previous_plan.with_name(
+                    f"{args.previous_plan.stem}.summary.json"
+                )
+                if published.is_file():
+                    prior = load_object(published, "Previous summary").get("draft")
+                    if isinstance(prior, int) and not isinstance(prior, bool):
+                        published_draft = prior
             result, state, plan = execute_fill(args.source, args.plan, args.output)
             form_name = (
                 args.form_name.strip()
@@ -938,17 +983,8 @@ def main() -> None:
                 previous_state=previous_state,
                 previous_summary=previous_summary,
             )
-            # The summary this helper saved beside the previous plan is the
-            # record of the last published draft; a caller that forgets the
-            # draft options must not produce a second card with the same number.
-            if args.previous_plan is not None:
-                published = args.previous_plan.with_name(
-                    f"{args.previous_plan.stem}.summary.json"
-                )
-                if published.is_file():
-                    prior = load_object(published, "Previous summary").get("draft")
-                    if isinstance(prior, int) and not isinstance(prior, bool):
-                        draft = max(draft, prior + 1)
+            if published_draft is not None:
+                draft = max(draft, published_draft + 1)
             # execute_fill only publishes to a destination that did not exist, so
             # removing it on a card failure undoes exactly this run and leaves
             # the same path free for the retry.

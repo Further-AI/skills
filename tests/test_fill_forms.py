@@ -1629,6 +1629,80 @@ def test_changes_name_answers_removed_since_the_previous_draft_file() -> None:
     ]
 
 
+def test_a_dropped_write_shows_the_original_answer_that_returns() -> None:
+    state = {
+        "fields": [
+            {"id": "insured", "label": "Named insured", "kind": "text", "value": ""},
+            {
+                "id": "contact",
+                "label": "Producer contact",
+                "kind": "text",
+                "value": "Alice Kim",
+            },
+            {"id": "agency", "label": "Agency", "kind": "text", "value": "Kim & Co"},
+            {"id": "email", "label": "Producer email", "kind": "text", "value": ""},
+            {"id": "owner", "label": "Owner", "kind": "checkbox", "value": False},
+        ]
+    }
+    current = {
+        "fields": [{"id": "insured", "value": "Example LLC", "source": "brief"}],
+        "blanks": [],
+    }
+    expected = [
+        {"label": "Producer contact", "value": "Alice Kim", "fields": 1},
+        {"label": "Producer email", "value": "Removed", "fields": 1, "removed": True},
+    ]
+
+    # Draft 1 replaced one prefilled answer, repeated another, filled a blank
+    # and left a box unchecked; draft 2 writes none of them.
+    previous = {
+        "fields": [
+            {"id": "insured", "value": "Example LLC", "source": "brief"},
+            {"id": "contact", "value": "Bob Stone", "source": "brief"},
+            {"id": "agency", "value": "Kim & Co", "source": "brief"},
+            {"id": "email", "value": "bob@example.com", "source": "brief"},
+            {"id": "owner", "value": False, "source": "brief"},
+        ],
+        "blanks": [],
+    }
+    summary = _summary(state, current, draft=2, previous_plan=previous)
+    assert summary["changes"] == expected
+
+    previous_state = {
+        "fields": [
+            {"id": "insured", "label": "Named insured", "value": "Example LLC"},
+            {"id": "contact", "label": "Producer contact", "value": "Bob Stone"},
+            {"id": "agency", "label": "Agency", "value": "Kim & Co"},
+            {"id": "email", "label": "Producer email", "value": "bob@example.com"},
+            {"id": "owner", "label": "Owner", "value": False},
+        ]
+    }
+    summary = _summary(state, current, draft=2, previous_state=previous_state)
+    assert summary["changes"] == expected
+
+
+def test_a_damaged_saved_summary_fails_before_the_draft_is_written(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    previous_plan = tmp_path / "previous-plan.json"
+    previous_plan.write_text(json.dumps({"fields": [], "blanks": []}))
+    saved = tmp_path / "previous-plan.summary.json"
+    saved.write_text('{"version": 1, "draft"')
+    output = _card_cli(tmp_path, monkeypatch, "--previous-plan", str(previous_plan))
+
+    with pytest.raises(SystemExit) as exit_info:
+        fill_plan.main()
+
+    assert exit_info.value.code == 1
+    assert json.loads(capsys.readouterr().out.splitlines()[0])["verified"] is False
+    assert not output.exists()
+
+    saved.write_text(json.dumps({"draft": 4}))
+    fill_plan.main()
+    assert output.exists()
+    assert _draft_of(capsys) == 5
+
+
 def _draft_of(capsys) -> int:
     return json.loads(capsys.readouterr().out.splitlines()[2])["draft"]
 
