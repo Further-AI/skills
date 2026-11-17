@@ -1707,6 +1707,27 @@ def test_a_damaged_saved_summary_fails_before_the_draft_is_written(
     assert _draft_of(capsys) == 5
 
 
+@pytest.mark.parametrize("value", [True, False])
+def test_a_choice_between_options_cannot_be_written_as_a_boolean(value) -> None:
+    state = {
+        "fields": [
+            {"id": "subs", "kind": "checkbox", "options": ["Yes", "No"]},
+            {"id": "renew", "kind": "checkbox", "options": ["On"]},
+        ]
+    }
+    plan = {
+        "fields": [{"id": "renew", "value": value, "source": "brief"}],
+        "blanks": [],
+    }
+    assert fill_plan.planned_values(plan, state) == {"renew": value}
+
+    plan["fields"] = [{"id": "subs", "value": value, "source": "brief"}]
+    with pytest.raises(ValueError, match="option name"):
+        fill_plan.planned_values(plan, state)
+    plan["fields"][0]["value"] = "No"
+    assert fill_plan.planned_values(plan, state) == {"subs": "No"}
+
+
 def _draft_of(capsys) -> int:
     return json.loads(capsys.readouterr().out.splitlines()[2])["draft"]
 
