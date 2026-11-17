@@ -48,6 +48,11 @@ combine a narration line with another sentence.
    The helper checks that a source reference exists, but you must establish that it
    supports the value.
 
+   Each inspected field has a `kind` and, for choices, `options`. For a field
+   with several options (a Yes/No pair, a radio group, a dropdown), write the
+   option's name as the value, such as `"No"`. Use `true` or `false` only for a
+   single box with one option.
+
    **Coverage selections are answers too.** Selecting a coverage row does not
    authorize choosing a numbered coverage symbol. Do not infer a checkbox,
    symbol, deductible, signature, date, or default from its proximity to another
