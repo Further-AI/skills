@@ -155,7 +155,8 @@ available.`, run every helper command with that variable set, exactly like this:
 is harmless. Never set it when that line is absent: other surfaces cannot render
 the summary block.
 The helper infers `--form-name` from the inspection or template filename and uses
-draft 1 by default. Pass either option only to override those defaults. The card
+draft 1 by default. Pass either option only to override those defaults; neither
+turns the summary block on. The card
 names the helper's destination file, so deliver the verified copy under that same
 name.
 

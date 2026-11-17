@@ -939,15 +939,13 @@ def main() -> None:
     args = parser.parse_args()
     try:
         summary = None
-        summary_enabled = (
-            args.form_name is not None
-            or os.environ.get("FAI_FORM_SUMMARY_CARDS") == "1"
-        )
-        if not summary_enabled:
+        if args.form_name is not None and not args.form_name.strip():
+            raise ValueError("Form name must be nonempty")
+        # Only the environment turns the block on: it is set by a chat that can
+        # render the card. An option the caller may pass on any surface must not.
+        if os.environ.get("FAI_FORM_SUMMARY_CARDS") != "1":
             result = fill(args.source, args.plan, args.output)
         else:
-            if args.form_name is not None and not args.form_name.strip():
-                raise ValueError("Form name must be nonempty")
             previous_plan = (
                 load_object(args.previous_plan, "Previous plan")
                 if args.previous_plan is not None

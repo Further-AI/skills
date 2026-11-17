@@ -318,6 +318,7 @@ def test_summary_groups_questions_and_lists_assumptions(tmp_path, monkeypatch, c
         return {"outcomes": [{"id": "insured", "placed": True}]}
 
     monkeypatch.setattr(fill_plan, "native", native)
+    monkeypatch.setenv("FAI_FORM_SUMMARY_CARDS", "1")
     monkeypatch.setattr(
         sys,
         "argv",
@@ -591,6 +592,7 @@ def test_previous_state_cli_builds_changes(tmp_path, monkeypatch, capsys):
         return {"outcomes": [{"id": "insured", "placed": True}]}
 
     monkeypatch.setattr(fill_plan, "native", native)
+    monkeypatch.setenv("FAI_FORM_SUMMARY_CARDS", "1")
     monkeypatch.setattr(
         sys,
         "argv",
@@ -640,6 +642,7 @@ def test_summary_failure_prints_no_card(tmp_path, monkeypatch, capsys):
         return {"outcomes": [{"id": "insured", "placed": False}]}
 
     monkeypatch.setattr(fill_plan, "native", native)
+    monkeypatch.setenv("FAI_FORM_SUMMARY_CARDS", "1")
     monkeypatch.setattr(
         sys,
         "argv",
@@ -726,6 +729,7 @@ def _card_cli(tmp_path, monkeypatch, *extra, state=None, plan=None):
         }
 
     monkeypatch.setattr(fill_plan, "native", native)
+    monkeypatch.setenv("FAI_FORM_SUMMARY_CARDS", "1")
     monkeypatch.setattr(
         sys,
         "argv",
@@ -1765,3 +1769,32 @@ def test_answers_before_the_first_fill_do_not_advance_the_draft(
     _card_cli(tmp_path, monkeypatch, "--previous-plan", str(asked), "--draft", "1")
     fill_plan.main()
     assert _draft_of(capsys) == 1
+
+
+def test_naming_the_form_does_not_turn_the_summary_on(tmp_path, monkeypatch, capsys) -> None:
+    output = _card_cli(tmp_path, monkeypatch)
+    monkeypatch.delenv("FAI_FORM_SUMMARY_CARDS")
+
+    fill_plan.main()
+
+    stdout = capsys.readouterr().out
+    assert json.loads(stdout)["verified"] is True
+    assert "fai-form-summary" not in stdout
+    assert output.exists()
+    assert not (tmp_path / "plan.summary.json").exists()
+
+
+def test_a_blank_form_name_is_refused_with_or_without_the_summary(tmp_path, monkeypatch, capsys) -> None:
+    for summary_on in (True, False):
+        turn = tmp_path / str(summary_on)
+        turn.mkdir()
+        output = _card_cli(turn, monkeypatch)
+        if not summary_on:
+            monkeypatch.delenv("FAI_FORM_SUMMARY_CARDS")
+        monkeypatch.setattr(sys, "argv", [*sys.argv[:4], "--form-name", " "])
+
+        with pytest.raises(SystemExit):
+            fill_plan.main()
+
+        assert json.loads(capsys.readouterr().out)["verified"] is False
+        assert not output.exists()
