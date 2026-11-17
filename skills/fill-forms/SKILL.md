@@ -57,6 +57,11 @@ combine a narration line with another sentence.
    `blanks` records requested answers that have no source, conflict, need a
    signature, or cannot be safely placed. It does not erase an existing value.
    Explain an existing-value conflict instead of silently retaining or clearing it.
+   Record every requested answer you did not write, one blank each: the summary
+   card lists them, so an answer missing from both `fields` and `blanks` is
+   reported to the user as done. When the form has no field for a requested
+   answer, leave out `id` and give the blank a `label` and `reason`; never borrow
+   another field's id.
 
    Add `ask`, `why`, and `replies` to blanks the user can answer. Include at most
    five questions and at most four short, obvious reply options; use `[]` when no
@@ -163,10 +168,11 @@ values and cite the user's message in each `source`, and write a JSON object map
 each answered `ask` exactly to the user's answer. Re-run the helper with
 `--previous-plan PRIOR_PLAN --previous-summary PRIOR_SUMMARY --answered ANSWERS`;
 use `--previous-state` instead of `--previous-plan` as described below when
-needed. The helper advances the prior summary's draft number unless `--draft`
-overrides it. Publish the verified result as a new version of the same filled
-document, never as a new version of the uploaded form. If the helper prints a new
-summary block, use the short final-reply format above. Give the helper a fresh
+needed. The helper numbers the draft itself from the summary it saved beside the
+prior plan, so do not pass `--draft` on a follow-up. Publish the verified result
+as a new version of the same filled document, never as a new version of the
+uploaded form. If the helper prints a new summary block, use the short
+final-reply format above. Give the helper a fresh
 output path in the current turn's output directory with the filled document's
 same filename, then publish that file as the new version.
 

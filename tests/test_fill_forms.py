@@ -365,6 +365,15 @@ def test_summary_groups_questions_and_lists_assumptions(tmp_path, monkeypatch, c
             }
         ],
         "changes": [],
+        "left_blank": [
+            {"label": "Signature", "reason": "Requires the applicant's signature"}
+        ],
+        "totals": {
+            "done": 1,
+            "open_questions": 1,
+            "assumptions": 1,
+            "left_blank": 1,
+        },
     }
     assert json.loads((work / "plan.summary.json").read_text()) == summary
     assert list(delivery.iterdir()) == [output]
@@ -1455,3 +1464,283 @@ def test_done_rows_do_not_pair_periods_that_would_share_a_label() -> None:
         {"label": "Policy effective date", "value": "2026-01-01"},
         {"label": "Policy expiration date", "value": "2027-01-01"},
     ]
+
+
+def _summary(state, plan, **options):
+    options.setdefault("draft", 1)
+    return fill_plan.build_summary(
+        form_name="ACORD 125",
+        output=Path("ACORD-125.pdf"),
+        state=state,
+        plan=plan,
+        **options,
+    )
+
+
+def test_a_blank_without_a_question_still_reaches_the_card() -> None:
+    state = {
+        "fields": [
+            {"id": "insured", "label": "Named insured", "kind": "text"},
+            {"id": "fax", "label": "Fax number", "kind": "text"},
+        ]
+    }
+    plan = {
+        "fields": [{"id": "insured", "value": "Example LLC", "source": "brief"}],
+        "blanks": [
+            {"id": "fax", "reason": "No fax number supplied"},
+            {
+                "label": "Lines of business: General liability",
+                "reason": "The form has no checkbox for this line",
+            },
+        ],
+    }
+
+    assert fill_plan.planned_values(plan, state) == {"insured": "Example LLC"}
+    summary = _summary(state, plan)
+
+    assert summary["questions"] == []
+    assert summary["left_blank"] == [
+        {"label": "Fax number", "reason": "No fax number supplied"},
+        {
+            "label": "Lines of business: General liability",
+            "reason": "The form has no checkbox for this line",
+        },
+    ]
+    assert summary["totals"]["left_blank"] == 2
+
+
+def test_a_blank_without_a_field_needs_a_label() -> None:
+    state = {"fields": [{"id": "insured", "kind": "text"}]}
+    plan = {
+        "fields": [{"id": "insured", "value": "Example LLC", "source": "brief"}],
+        "blanks": [{"reason": "The form has no checkbox for this line"}],
+    }
+    with pytest.raises(ValueError, match="requires a label"):
+        fill_plan.planned_values(plan, state)
+    plan["fields"].append({"value": "x", "source": "brief", "label": "No id"})
+    plan["blanks"] = []
+    with pytest.raises(ValueError, match="inspected field id"):
+        fill_plan.planned_values(plan, state)
+
+
+def test_totals_count_what_the_capped_lists_leave_out() -> None:
+    count = 9
+    state = {
+        "fields": [
+            {"id": f"{kind}{index}", "label": f"{kind} {index}", "kind": "text"}
+            for kind in ("answer", "open", "skipped")
+            for index in range(count)
+        ]
+    }
+    plan = {
+        "fields": [
+            {
+                "id": f"answer{index}",
+                "value": str(index),
+                "source": "brief",
+                "assumption": "estimated",
+            }
+            for index in range(count)
+        ],
+        "blanks": [
+            *(
+                {
+                    "id": f"open{index}",
+                    "reason": "Not supplied",
+                    "ask": f"What is value {index}?",
+                    "why": "Not in the documents",
+                    "replies": [],
+                }
+                for index in range(count)
+            ),
+            *(
+                {"id": f"skipped{index}", "reason": "Needs a signature"}
+                for index in range(count)
+            ),
+        ],
+    }
+
+    summary = _summary(state, plan)
+
+    shown = {
+        key: len(summary[key])
+        for key in ("done", "questions", "assumptions", "left_blank")
+    }
+    assert all(length < count for length in shown.values())
+    assert summary["totals"] == {
+        "done": count,
+        "open_questions": count,
+        "assumptions": count,
+        "left_blank": count,
+    }
+
+
+def test_changes_name_answers_removed_since_the_previous_plan() -> None:
+    state = {
+        "fields": [
+            {"id": "contact", "label": "Producer contact", "kind": "text"},
+            {"id": "email", "label": "Producer email", "kind": "text"},
+        ]
+    }
+    previous = {
+        "fields": [
+            {"id": "contact", "value": "Dana Reyes", "source": "brief"},
+            {"id": "email", "value": "dana@example.com", "source": "brief"},
+        ],
+        "blanks": [],
+    }
+    current = {
+        "fields": [{"id": "contact", "value": "Sam Lee", "source": "user"}],
+        "blanks": [],
+    }
+
+    summary = _summary(state, current, draft=2, previous_plan=previous)
+
+    assert summary["changes"] == [
+        {"label": "Producer contact", "value": "Sam Lee", "fields": 1},
+        {"label": "Producer email", "value": "Removed", "fields": 1, "removed": True},
+    ]
+
+
+def test_changes_name_answers_removed_since_the_previous_draft_file() -> None:
+    state = {
+        "fields": [
+            {"id": "contact", "label": "Producer contact", "kind": "text", "value": ""},
+            {"id": "email", "label": "Producer email", "kind": "text", "value": ""},
+            {"id": "edition", "label": "Edition", "kind": "text", "value": "2016"},
+        ]
+    }
+    previous_state = {
+        "fields": [
+            {"id": "contact", "label": "Producer contact", "value": "Sam Lee"},
+            {"id": "email", "label": "Producer email", "value": "dana@example.com"},
+            {"id": "edition", "label": "Edition", "value": "2016"},
+        ]
+    }
+    current = {
+        "fields": [{"id": "contact", "value": "Sam Lee", "source": "user"}],
+        "blanks": [],
+    }
+
+    summary = _summary(state, current, draft=2, previous_state=previous_state)
+
+    assert summary["changes"] == [
+        {"label": "Producer email", "value": "Removed", "fields": 1, "removed": True}
+    ]
+
+
+def test_a_dropped_write_shows_the_original_answer_that_returns() -> None:
+    state = {
+        "fields": [
+            {"id": "insured", "label": "Named insured", "kind": "text", "value": ""},
+            {
+                "id": "contact",
+                "label": "Producer contact",
+                "kind": "text",
+                "value": "Alice Kim",
+            },
+            {"id": "agency", "label": "Agency", "kind": "text", "value": "Kim & Co"},
+            {"id": "email", "label": "Producer email", "kind": "text", "value": ""},
+            {"id": "owner", "label": "Owner", "kind": "checkbox", "value": False},
+        ]
+    }
+    current = {
+        "fields": [{"id": "insured", "value": "Example LLC", "source": "brief"}],
+        "blanks": [],
+    }
+    expected = [
+        {"label": "Producer contact", "value": "Alice Kim", "fields": 1},
+        {"label": "Producer email", "value": "Removed", "fields": 1, "removed": True},
+    ]
+
+    # Draft 1 replaced one prefilled answer, repeated another, filled a blank
+    # and left a box unchecked; draft 2 writes none of them.
+    previous = {
+        "fields": [
+            {"id": "insured", "value": "Example LLC", "source": "brief"},
+            {"id": "contact", "value": "Bob Stone", "source": "brief"},
+            {"id": "agency", "value": "Kim & Co", "source": "brief"},
+            {"id": "email", "value": "bob@example.com", "source": "brief"},
+            {"id": "owner", "value": False, "source": "brief"},
+        ],
+        "blanks": [],
+    }
+    summary = _summary(state, current, draft=2, previous_plan=previous)
+    assert summary["changes"] == expected
+
+    previous_state = {
+        "fields": [
+            {"id": "insured", "label": "Named insured", "value": "Example LLC"},
+            {"id": "contact", "label": "Producer contact", "value": "Bob Stone"},
+            {"id": "agency", "label": "Agency", "value": "Kim & Co"},
+            {"id": "email", "label": "Producer email", "value": "bob@example.com"},
+            {"id": "owner", "label": "Owner", "value": False},
+        ]
+    }
+    summary = _summary(state, current, draft=2, previous_state=previous_state)
+    assert summary["changes"] == expected
+
+
+def test_a_damaged_saved_summary_fails_before_the_draft_is_written(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    previous_plan = tmp_path / "previous-plan.json"
+    previous_plan.write_text(json.dumps({"fields": [], "blanks": []}))
+    saved = tmp_path / "previous-plan.summary.json"
+    saved.write_text('{"version": 1, "draft"')
+    output = _card_cli(tmp_path, monkeypatch, "--previous-plan", str(previous_plan))
+
+    with pytest.raises(SystemExit) as exit_info:
+        fill_plan.main()
+
+    assert exit_info.value.code == 1
+    assert json.loads(capsys.readouterr().out.splitlines()[0])["verified"] is False
+    assert not output.exists()
+
+    saved.write_text(json.dumps({"draft": 4}))
+    fill_plan.main()
+    assert output.exists()
+    assert _draft_of(capsys) == 5
+
+
+def _draft_of(capsys) -> int:
+    return json.loads(capsys.readouterr().out.splitlines()[2])["draft"]
+
+
+def test_drafts_keep_counting_when_the_caller_forgets_the_draft_options(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    first = tmp_path / "turn1"
+    first.mkdir()
+    _card_cli(first, monkeypatch)
+    fill_plan.main()
+    assert _draft_of(capsys) == 1
+
+    second = tmp_path / "turn2"
+    second.mkdir()
+    _card_cli(second, monkeypatch, "--previous-plan", str(first / "plan.json"))
+    fill_plan.main()
+    assert _draft_of(capsys) == 2
+
+    third = tmp_path / "turn3"
+    third.mkdir()
+    _card_cli(
+        third,
+        monkeypatch,
+        "--previous-plan",
+        str(second / "plan.json"),
+        "--draft",
+        "2",
+    )
+    fill_plan.main()
+    assert _draft_of(capsys) == 3
+
+
+def test_answers_before_the_first_fill_do_not_advance_the_draft(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    asked = tmp_path / "pre-question-plan.json"
+    asked.write_text(json.dumps({"fields": [], "blanks": []}))
+    _card_cli(tmp_path, monkeypatch, "--previous-plan", str(asked), "--draft", "1")
+    fill_plan.main()
+    assert _draft_of(capsys) == 1
