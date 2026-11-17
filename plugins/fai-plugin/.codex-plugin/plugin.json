@@ -1,0 +1,30 @@
+{
+  "name": "fai",
+  "version": "0.2.0",
+  "description": "Operate the FurtherAI platform from Codex: workflows, submissions, evaluations, issue triage, account context, and branded customer artifacts.",
+  "author": {
+    "name": "FurtherAI",
+    "email": "andrew@furtherai.com"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "FAI",
+    "shortDescription": "Run FurtherAI workflows, evaluations, and client work.",
+    "longDescription": "Build, test, and investigate FurtherAI workflows; operate submissions and Eval Studio; manage account context; and create branded decks, documents, screenshots, and accuracy reports.",
+    "developerName": "FurtherAI",
+    "category": "Productivity",
+    "capabilities": [
+      "Workflow authoring",
+      "Submission operations",
+      "Eval Studio",
+      "Error triage",
+      "Account context",
+      "Branded decks and documents"
+    ],
+    "defaultPrompt": [
+      "What can this plugin do for an Engagement Manager?",
+      "Prepare a customer accuracy review from recent submissions, ground truth, test results, and a deck.",
+      "Prepare an implementation check-in from workflow changes, usage, issues, blockers, and next steps."
+    ]
+  }
+}

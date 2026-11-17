@@ -1,0 +1,86 @@
+/* FurtherAI design tokens for generated HTML artifacts — the accuracy report
+ * and the doc skill's HTML->PDF path. Source of truth: the platform design
+ * system (webapp). For branded marketing/document artifacts (decks, Word
+ * documents), see assets/brand/BRAND.md instead — that is a separate palette.
+ * Embed this file's contents inline in every generated HTML artifact —
+ * artifacts must be self-contained (no external requests).
+ *
+ * Font: embed Wix Madefor Text via the base64 woff2 in this directory:
+ *   @font-face { font-family: 'Wix Madefor Text';
+ *     src: url(data:font/woff2;base64,<contents of wix-madefor-text.woff2.b64>) format('woff2');
+ *     font-weight: 400 700; font-display: swap; }
+ */
+
+:root {
+  /* Brand */
+  --fai-brand: #fb9608;          /* mango — brand accents, never body text */
+  --fai-brand-hover: #de8105;
+  --fai-action: #425c86;         /* navy — buttons, links, primary accents */
+  --fai-action-hover: #31425e;
+
+  /* Semantic */
+  --fai-success: #2b785d;        /* pinehurst */
+  --fai-success-bg: rgba(54, 160, 123, 0.2);
+  --fai-warning: #bc6d06;        /* mango-1100 */
+  --fai-warning-bg: #ffe5be;
+  --fai-error: #b53b18;          /* sinopia */
+  --fai-error-bg: #fcded7;
+  --fai-accent: #4a6a9b;         /* navy-600 */
+  --fai-accent-bg: #dfe8fb;
+  --fai-neutral-bg: #ecebe5;
+
+  /* Text */
+  --fai-text: #161611;
+  --fai-text-secondary: #6f6d64;
+  --fai-text-tertiary: #969388;
+
+  /* Surfaces */
+  --fai-surface: #ffffff;
+  --fai-surface-container: #f9f9f9;
+  --fai-surface-hover: #f4f4f4;
+  --fai-border: #e8e8e8;
+
+  /* Shape */
+  --fai-radius: 8px;             /* cards */
+  --fai-radius-sm: 4px;          /* chips, buttons */
+  --fai-radius-lg: 12px;         /* stat cards */
+  --fai-shadow-chip: 0px 1px 0.5px 0.05px rgba(24, 24, 27, 0.05);
+
+  /* Type */
+  --fai-font: 'Wix Madefor Text', -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* Chart series palette — use in order for categorical series */
+/* 1 #E8972C  2 #3481C2  3 #34A853  4 #8B5CF6  5 #EC4899
+   6 #14B8A6  7 #F59E0B  8 #EF4444  9 #6366F1 10 #10B981 */
+
+/* Accuracy / score thresholds: >=80 --fai-success, >=50 --fai-warning,
+   <50 --fai-error. Execution status colors: completed --fai-success,
+   failed --fai-error, running/in_progress --fai-accent,
+   paused/blocked --fai-warning, not_started/cancelled --fai-text-tertiary. */
+
+body.fai {
+  font-family: var(--fai-font);
+  color: var(--fai-text);
+  background: var(--fai-surface-container);
+  font-size: 14px;
+  line-height: 1.45;
+  margin: 0;
+}
+.fai-card {
+  background: var(--fai-surface);
+  border: 1px solid var(--fai-border);
+  border-radius: var(--fai-radius);
+  padding: 20px;
+}
+.fai-stat-value { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.fai-stat-label { font-size: 11px; font-weight: 500; letter-spacing: .05em; text-transform: uppercase; color: var(--fai-text-secondary); }
+.fai-badge {
+  display: inline-block; padding: 2px 8px; border-radius: 5px;
+  font-size: 12px; font-weight: 600;
+}
+.fai-badge-success { background: var(--fai-success-bg); color: var(--fai-success); }
+.fai-badge-warning { background: var(--fai-warning-bg); color: var(--fai-warning); }
+.fai-badge-error   { background: var(--fai-error-bg);   color: var(--fai-error); }
+.fai-badge-accent  { background: var(--fai-accent-bg);  color: var(--fai-action); }
+.fai-badge-neutral { background: var(--fai-neutral-bg); color: var(--fai-text-secondary); }
