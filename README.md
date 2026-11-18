@@ -13,7 +13,7 @@ uses to perform a task.
 | [Distance to Coast](skills/distance-to-coast/SKILL.md) | Give a ZIP code's distance to the coast and Great Lakes with the standard distance band. |
 | [Document Design](skills/document-design/SKILL.md) | Apply the house visual style (fonts, colors, layouts, footer) to new Word, PowerPoint, Excel, and PDF files. |
 | [FDA Recall History](skills/fda-recall-history/SKILL.md) | Look up a company's FDA food, drug, and device recall history since 2012. |
-| [Fill Forms](skills/fill-forms/SKILL.md) | Fill existing PDF and DOCX forms from sources using native verification and explicit blank disclosures. |
+| [Fill Forms](skills/fill-forms/SKILL.md) | Fill existing PDF, DOCX and XLSX forms from sources using native verification and explicit blank disclosures. |
 | [Flood Claim History](skills/flood-claim-history/SKILL.md) | Summarize NFIP flood claims for a ZIP code or county since 1978. |
 | [Healthcare Exclusion Screen](skills/healthcare-exclusion-screen/SKILL.md) | Screen people and businesses against the HHS-OIG exclusion list (LEIE). |
 | [Industry Code Extraction](skills/industry-code-extraction/SKILL.md) | Identify a business's NAICS and SIC codes. |

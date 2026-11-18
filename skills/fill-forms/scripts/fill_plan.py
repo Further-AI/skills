@@ -11,6 +11,10 @@ from pathlib import Path
 from typing import Any
 
 
+SUPPORTED_SUFFIXES = {".pdf", ".docx", ".xlsx"}
+WORKBOOK_CELL_SOURCES = {"cell", "named_cell"}
+
+
 def native(*args: str) -> dict[str, Any]:
     result = subprocess.run(
         ["fai-form", *args], capture_output=True, text=True, check=False, timeout=180
@@ -90,6 +94,20 @@ def planned_values(
                 "Field has several options; write the option name, "
                 f"not true or false: {entry['id']}"
             )
+        if field.get("source") in WORKBOOK_CELL_SOURCES:
+            options = field.get("options") or []
+            if isinstance(value, bool):
+                raise ValueError(
+                    "A workbook cell takes text; write the answer or the listed "
+                    f"option, not true or false: {entry['id']}"
+                )
+            # The engine matches loosely and stores the listed spelling, so a
+            # loose value would show on the card differently from the file.
+            if options and value not in options:
+                raise ValueError(
+                    f"Write one of the listed options exactly ({', '.join(options)}): "
+                    f"{entry['id']}"
+                )
         values[entry["id"]] = value
     for entry in plan["blanks"]:
         if (
@@ -796,15 +814,28 @@ def require_outcomes(payload: dict[str, Any], values: dict[str, str | bool]) -> 
         )
 
 
+def inspect_template(source: Path) -> dict[str, Any]:
+    try:
+        return native("inspect", str(source))
+    except ValueError as error:
+        # An engine from before Excel support rejects the file type outright.
+        if source.suffix.lower() == ".xlsx" and "unsupported form type" in str(error):
+            raise ValueError(
+                "The form engine in this environment cannot fill Excel workbooks; "
+                "fill the workbook with the spreadsheet tools instead"
+            ) from error
+        raise
+
+
 def execute_fill(
     source: Path, plan_path: Path, output: Path
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     if (
-        source.suffix.lower() not in {".pdf", ".docx"}
+        source.suffix.lower() not in SUPPORTED_SUFFIXES
         or output.suffix.lower() != source.suffix.lower()
     ):
         raise ValueError(
-            "Source and destination must have the same supported PDF or DOCX format"
+            "Source and destination must have the same supported PDF, DOCX or XLSX format"
         )
     if source.name.casefold() == output.name.casefold():
         raise ValueError("Destination filename must differ from the template filename")
@@ -812,7 +843,7 @@ def execute_fill(
         raise ValueError(
             "Use a new destination; the original and existing outputs are preserved"
         )
-    state = native("inspect", str(source))
+    state = inspect_template(source)
     plan = json.loads(plan_path.read_text())
     if not isinstance(plan, dict):
         raise ValueError("Plan must be an object")

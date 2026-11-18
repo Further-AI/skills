@@ -2,7 +2,7 @@
 name: fill-forms
 metadata:
   furtherai-display-name: Fill Forms
-description: Fill an existing PDF or DOCX form from supplied documents or answers, preserving its layout and editability. Use for ACORD forms, carrier applications, questionnaires, and Word intake forms with named fields or answer cells. Use the spreadsheet tools for XLSX templates; creating a new document or summarizing a form is a separate task.
+description: Fill an existing PDF, DOCX or XLSX form from supplied documents or answers, preserving its layout and editability. Use for ACORD forms, carrier applications, questionnaires, Word intake forms with named fields or answer cells, and Excel applications with a labelled answer cell per question. Creating a new document, building or analysing a spreadsheet, or summarizing a form is a separate task.
 ---
 
 # Fill Forms
@@ -111,7 +111,7 @@ Run the helper from this skill's directory, substituting real paths:
 python scripts/fill_plan.py TEMPLATE WORK/plan.json WORK/verified-copy.pdf
 ```
 
-Use a `.docx` destination for Word. The helper validates the plan against the
+Use a `.docx` destination for Word and `.xlsx` for Excel. The helper validates the plan against the
 original inspection, calls `fai-form fill`, then independently calls `fai-form
 verify` on the saved copy. It publishes the destination only when every planned
 write passes. It never edits the source. Empty plans and unsupported fields fail.
@@ -133,6 +133,37 @@ the reported IDs/reasons, correct the mapping or unsupported value, and retry fr
 the original. After two unsuccessful repairs, explain the remaining fields and
 request the missing information or a supported template. Do not claim completion
 or publish an unverified file.
+
+## Excel workbooks
+
+A workbook has no form fields, so inspection lists only the cells it can show are
+answer cells: a named cell, a cell with a dropdown list, an unlocked cell on a
+protected sheet, or an empty cell directly to the right of its label. IDs look
+like `cell:Application!B6` or `name:ProducerEmail`; `section` is the sheet name.
+
+- Write every value as text, the way a person would type it into the cell:
+  `"1850000"`, `"01/01/2027"`, `"15%"`. The engine stores a number or a date when
+  the cell's format asks for one (`format_hint`) and keeps identifiers such as ZIP
+  codes and FEINs as text. Never write `true` or `false`.
+- For a field with `options`, write one of the listed options exactly as listed.
+  Anything else is refused.
+- Formula cells are not listed and cannot be written. Do not plan a value for a
+  total or any other calculated cell; it updates when the workbook is opened in
+  Excel.
+- A requested answer whose cell is not in the inspection, such as a row in a
+  schedule or table, goes in `blanks` with no `id`, a `label`, and the reason
+  “No answer cell found for this on the form”. Do not write it into the verified
+  copy with another tool.
+- The helper refuses a workbook that a save would damage: macros (`.xlsm`),
+  charts, images, pivot tables, form controls. Tell the user which of these the
+  workbook contains and that it cannot be filled automatically. Legacy `.xls`
+  files are not supported; ask for an `.xlsx` copy.
+- If the helper says the form engine in this environment cannot fill Excel
+  workbooks, use the spreadsheet tools for this request instead and say that the
+  result was not natively verified.
+- There is no page render for a workbook. Skip the visual comparison in Review
+  and deliver, rely on the native verification that passed, and ask the user to
+  review the delivered workbook before sending it.
 
 ## Summary blocks and follow-ups
 
