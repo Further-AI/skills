@@ -148,8 +148,7 @@ like `cell:Application!B6` or `name:ProducerEmail`; `section` is the sheet name.
 - For a field with `options`, write one of the listed options exactly as listed.
   Anything else is refused.
 - Formula cells are not listed and cannot be written. Do not plan a value for a
-  total or any other calculated cell; it updates when the workbook is opened in
-  Excel.
+  total or any other calculated cell; it is calculated from the cells you fill.
 - A requested answer whose cell is not in the inspection, such as a row in a
   schedule or table, goes in `blanks` with no `id`, a `label`, and the reason
   “No answer cell found for this on the form”. Do not write it into the verified
