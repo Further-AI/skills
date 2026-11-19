@@ -1798,3 +1798,108 @@ def test_a_blank_form_name_is_refused_with_or_without_the_summary(tmp_path, monk
 
         assert json.loads(capsys.readouterr().out)["verified"] is False
         assert not output.exists()
+
+
+WORKBOOK_STATE = {
+    "kind": "xlsx",
+    "fields": [
+        {"id": "cell:Application!B3", "label": "Named insured", "kind": "text", "source": "cell"},
+        {"id": "name:EntityType", "label": "Entity type", "kind": "dropdown", "source": "named_cell", "options": ["LLC", "Corporation"]},
+    ],
+}
+
+
+def _workbook_plan(value: str | bool = "Example LLC") -> dict[str, list[dict[str, object]]]:
+    return {
+        "fields": [{"id": "cell:Application!B3", "label": "Named insured", "value": value, "source": "brief.txt: named insured"}],
+        "blanks": [{"id": "name:EntityType", "label": "Entity type", "reason": "Not supplied"}],
+    }
+
+
+def test_an_excel_form_is_filled_verified_and_published(tmp_path, monkeypatch) -> None:
+    original, output = tmp_path / "Application.xlsx", tmp_path / "Application (filled).xlsx"
+    original.write_bytes(b"original")
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(_workbook_plan()))
+    candidates = []
+
+    def native(command, *args):
+        if command == "inspect":
+            return WORKBOOK_STATE
+        if command == "fill":
+            candidates.append(Path(args[2]).suffix)
+            Path(args[2]).write_bytes(b"filled")
+        return {"outcomes": [{"id": "cell:Application!B3", "placed": True}]}
+
+    monkeypatch.setattr(fill_plan, "native", native)
+    result = fill_plan.fill(original, plan_path, output)
+
+    assert result["verified"] and candidates == [".xlsx"]
+    assert (original.read_bytes(), output.read_bytes()) == (b"original", b"filled")
+
+
+@pytest.mark.parametrize(
+    ("source", "destination"),
+    [
+        ("form.xlsx", "filled.pdf"),
+        ("form.pdf", "filled.xlsx"),
+        ("form.xlsm", "filled.xlsm"),
+        ("form.xls", "filled.xls"),
+        ("form.csv", "filled.csv"),
+    ],
+)
+def test_other_spreadsheet_types_and_mixed_formats_never_reach_the_engine(tmp_path, monkeypatch, source, destination) -> None:
+    (tmp_path / source).write_bytes(b"original")
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(_workbook_plan()))
+    monkeypatch.setattr(fill_plan, "native", lambda *args: pytest.fail("engine called"))
+
+    with pytest.raises(ValueError, match="same supported"):
+        fill_plan.fill(tmp_path / source, plan_path, tmp_path / destination)
+    assert not (tmp_path / destination).exists()
+
+
+@pytest.mark.parametrize("value", [True, False])
+def test_a_workbook_cell_cannot_be_written_as_a_boolean(value) -> None:
+    with pytest.raises(ValueError, match="workbook cell takes text"):
+        fill_plan.planned_values(_workbook_plan(value), WORKBOOK_STATE)
+
+
+def test_an_engine_without_excel_support_points_to_the_spreadsheet_tools(tmp_path, monkeypatch) -> None:
+    def run(command, **kwargs):
+        return CompletedProcess(command, 1, "", "unsupported form type: Application.xlsx")
+
+    monkeypatch.setattr(fill_plan.subprocess, "run", run)
+    (tmp_path / "Application.xlsx").write_bytes(b"original")
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(_workbook_plan()))
+
+    with pytest.raises(ValueError, match="cannot fill Excel workbooks"):
+        fill_plan.fill(tmp_path / "Application.xlsx", plan_path, tmp_path / "out.xlsx")
+    assert not (tmp_path / "out.xlsx").exists()
+
+
+def test_other_inspection_failures_keep_their_own_message(tmp_path, monkeypatch) -> None:
+    def run(command, **kwargs):
+        return CompletedProcess(command, 1, "", "file_unreadable")
+
+    monkeypatch.setattr(fill_plan.subprocess, "run", run)
+    (tmp_path / "Application.xlsx").write_bytes(b"original")
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(json.dumps(_workbook_plan()))
+
+    with pytest.raises(ValueError, match="Native inspect failed"):
+        fill_plan.fill(tmp_path / "Application.xlsx", plan_path, tmp_path / "out.xlsx")
+
+
+@pytest.mark.parametrize("value", ["llc", "LLC ", "Sole proprietor"])
+def test_a_workbook_dropdown_takes_only_a_listed_option_as_listed(value) -> None:
+    plan = {
+        "fields": [{"id": "name:EntityType", "value": value, "source": "brief.txt: entity"}],
+        "blanks": [],
+    }
+    with pytest.raises(ValueError, match="listed options exactly"):
+        fill_plan.planned_values(plan, WORKBOOK_STATE)
+
+    plan["fields"][0]["value"] = "Corporation"
+    assert fill_plan.planned_values(plan, WORKBOOK_STATE) == {"name:EntityType": "Corporation"}
