@@ -199,9 +199,18 @@ internal steps. Otherwise, keep the delivery instructions in Review and deliver
 below, but still never mention internal steps. Summary output never changes the
 narration lines or when they are posted.
 
-When the user answers, preserve the prior plan, update the current plan with those
-values and cite the user's message in each `source`, and write a JSON object mapping
-each answered `ask` exactly to the user's answer. Re-run the helper with
+Every correction to an answer in a delivered form is a follow-up, even when all
+questions were already answered or the user asks to change only one cell. Use
+this workflow for PDF, Word, and Excel drafts; a generic file edit alone does not
+produce the updated form summary.
+
+Preserve the prior plan and summary, copy the full plan to a new current plan,
+and change only the answers the user corrected or supplied. Keep the other
+source-backed fields and unresolved blanks so the next card describes the whole
+draft, not just the latest edit. Cite the user's message in each changed field's
+`source`. Write a JSON object mapping each answered `ask` exactly to the user's
+answer; use `{}` when the correction answers no open question. Re-run the helper
+against the original template with
 `--previous-plan PRIOR_PLAN --previous-summary PRIOR_SUMMARY --answered ANSWERS`;
 use `--previous-state` instead of `--previous-plan` as described below when
 needed. The helper numbers the draft itself from the summary it saved beside the
@@ -215,7 +224,8 @@ same filename, then publish that file as the new version.
 If the prior plan is missing from the work directory because the sandbox was
 recycled, fetch the current version of the delivered draft and run
 `fai-form inspect <current-draft> > <work>/previous-state.json`. Rebuild the
-current plan, then pass `--previous-state <work>/previous-state.json` instead of
+current plan from the prior summary and sources, retaining unchanged answers and
+open items, then pass `--previous-state <work>/previous-state.json` instead of
 `--previous-plan`; this compares changes with the values actually in the latest
 draft. Also save the JSON inside the previous turn's `fai-form-summary` block,
 copied from the chat, to `<work>/previous-summary.json` and pass
